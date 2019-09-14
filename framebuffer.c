@@ -24,7 +24,7 @@ int loadFrameBuffer()
 	fbfd = open("/dev/fb0", O_RDWR);
 	if (fbfd == -1) 
 	{
-		perror("Error: cannot open framebuffer device\n");
+		printf("Error: cannot open framebuffer device\n");
 		return -1;
 	}
 	printf("The framebuffer device was opened successfully.\n");
@@ -32,13 +32,13 @@ int loadFrameBuffer()
 	// Get fixed screen information
 	if (ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo) == -1) 
 	{
-		perror("Error reading fixed information\n");
+		printf("Error reading fixed information\n");
 		return -1;
 	}
 
 	// Get variable screen information
 	if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo) == -1) {
-		perror("Error reading variable information\n");
+		printf("Error reading variable information\n");
 		return -1;
 	}
 	return 1;
@@ -49,7 +49,7 @@ int loadConsole()
 	console = open("/dev/tty0", O_RDWR);
 	if (console == -1) 
 	{
-		perror("Error: cannot open framebuffer device\n");
+		printf("Error: cannot open framebuffer device\n");
 		return -1;
 	}
 	return 1;
@@ -100,45 +100,101 @@ int main()
 	// Map the device to memory
 	fbp = (char *)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
 
-	if ((int)fbp == -1) 
+	if ((char)fbp == -1) 
 	{
-		perror("Error: failed to map framebuffer device to memory\n");
-		exit(4);
+		printf("Error: failed to map framebuffer device to memory\n");
+		return -1;
 	}
 	printf("The framebuffer device was mapped to memory successfully.\n");
 
 
 	for (y = 0; y < vinfo.yres; y++)
 	{
-		for (x = 0; x < vinfo.xres; x+=4)
+		for (x = 0; x < vinfo.xres; x++)
 		{
-			int r = rand() % 256;
-			int g = rand() % 256;
-			int b = rand() % 256;
-			for (int i = 0; i < 4; i++)
-			{
-				location = (x+vinfo.xoffset + i) * (vinfo.bits_per_pixel/8) +
-					(y+vinfo.yoffset) * finfo.line_length;
-				*(fbp + location) = r;
-				*(fbp + location + 1) = g;
-				*(fbp + location + 2) = b;
-				*(fbp + location + 3) = 0;
-			}
+			/*
+			   int r = rand() % 256;
+			   int g = rand() % 256;
+			   int b = rand() % 256;
+			   */
+			int r = 0;
+			int g = 0;
+			int b = 0;
+			location = (x+vinfo.xoffset) * (vinfo.bits_per_pixel/8) +
+				(y+vinfo.yoffset) * finfo.line_length;
+			*(fbp + location) = b;
+			*(fbp + location + 1) = g;
+			*(fbp + location + 2) = r;
+			*(fbp + location + 3) = 0;
 		}
 	}
+
+	x = vinfo.xres / 2;
+	y = vinfo.yres / 2;	
+
+	int r = 255;
+	int g  = 0;
+	int b = 0;
 
 	while (1)
 	{
 		read(keyboard, &keyEvent, sizeof(struct input_event));
-		if (keyEvent.type == 1 && keyEvent.code == 16)
+
+		location = (x+vinfo.xoffset) * (vinfo.bits_per_pixel/8) +
+			(y+vinfo.yoffset) * finfo.line_length;
+
+		if (keyEvent.type == 1)
 		{
-			munmap(fbp, screensize);
-			close(fbfd);
-			closeKeyBoard();
-			disableConsoleGraphics();
-			close(console);
-			break;
+
+			if (keyEvent.code == 1)
+			{
+				munmap(fbp, screensize);
+				close(fbfd);
+				closeKeyBoard();
+				disableConsoleGraphics();
+				close(console);
+				system("clear");
+				break;
+			}
+			if (keyEvent.code == 106)
+			{
+				// right arrow
+				*(fbp + location) = b;
+				*(fbp + location + 1) = g;
+				*(fbp + location + 2) = r;
+				*(fbp + location + 3) = 0;
+				x++;
+			}
+			if (keyEvent.code == 105)
+			{
+				// left arrow
+				*(fbp + location) = b;
+				*(fbp + location + 1) = g;
+				*(fbp + location + 2) = r;
+				*(fbp + location + 3) = 0;
+				x--;	
+			}
+			if (keyEvent.code == 103)
+			{
+				// right arrow
+				*(fbp + location) = b;
+				*(fbp + location + 1) = g;
+				*(fbp + location + 2) = r;
+				*(fbp + location + 3) = 0;
+				y--;	
+			}
+
+			if (keyEvent.code == 108)
+			{
+				// right arrow
+				*(fbp + location) = b;
+				*(fbp + location + 1) = g;
+				*(fbp + location + 2) = r;
+				*(fbp + location + 3) = 0;
+				y++;	
+			}
 		}
+
 	}
 	return 0;
 }
