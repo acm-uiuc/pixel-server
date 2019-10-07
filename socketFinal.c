@@ -4,7 +4,37 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
-#include "socket.h"
+
+struct pixelData
+{
+	uint8_t x, y, r, g, b;
+};
+
+uint8_t * trim (uint8_t * input)
+{
+	//TODO: Fix malloc over top size error!
+	if (*(input) != ' ')
+		return input;
+	int i = 0;
+	printf("Trim function: input = %s, length = %d\n", input, strlen(input));
+	for (i; i < strlen(input); i++)
+	{
+		printf("Checking: %c\n", *(input + i));
+		if (*(input + i) != ' ')
+			break;
+	}
+	printf("i = %d\n", i);
+	uint8_t *output = malloc(strlen(input) - i);
+	printf("Starting string copy\n");
+	for (int j = 0; j < strlen(input) - i; j++)
+	{
+		*(output + j) = *(input + i + j);
+	}
+	input = output;
+	free(output);
+	return input;
+}
+
 int8_t processRequest(uint8_t buffer[]) 
 {
 	printf("Processing Request\n");
@@ -33,6 +63,40 @@ int8_t processRequest(uint8_t buffer[])
 	{
 		return -27;
 	}
+	uint8_t **params = (uint8_t**) malloc(16);
+	uint8_t *paramToken = strtok(request, ",");
+	int paramCount = 0;
+	while (paramToken != NULL)
+	{
+		*(params + paramCount) = paramToken;
+		paramCount++;
+		paramToken = strtok(NULL, ",");
+	}
+
+	uint8_t data[5];
+	int equalityIndex = 0;
+	for (int i = 0; i < paramCount; i++)
+	{
+		if (*(params + i) == NULL)
+			break;
+		//process each value
+		int j = 0;
+		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
+		for (j = 0; j < strlen(*(params + i)); j++)	
+		{
+			if ((u_int8_t)*(*(params + i) + j) == '=')
+			{
+				equalityIndex = i;
+				break;
+			}
+			//printf("%c\n", *(*(params + i) + j));
+		}
+		printf("Data: %s\n", &(*(*(params + i) + equalityIndex)));
+		equalityIndex = 0;
+		//data[i] = atoi(*(params + i + equalityIndex));		
+	}
+
+	free(params);
 	return 0;
 }
 
@@ -92,8 +156,8 @@ int main()
 		if (result == -27)
 			break;
 		printf("Processed Request: %d\n", requestCount);
-		uint8_t response[] = "The server recieved your request!\n";
-		write(connfd, &response, sizeof(response));
+		uint8_t response[] = "HTTP/1.1 200 OK \r\n The server recieved your request!\r\n";
+		send(connfd, &response, sizeof(response), 0);
 		close(connfd);
 	}
 	printf("Exiting server\n");
