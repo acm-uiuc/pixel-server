@@ -45,7 +45,7 @@ int8_t processRequest(uint8_t buffer[])
 		printf("ERROR: This server only processes POST requests\n");
 		return -1;
 	}
-	//TODO: Finish splitting request at new line
+	
 	uint8_t **array = (uint8_t**) malloc(24);
 	uint8_t * token;
 	token = strtok(buffer, "\n");
@@ -82,18 +82,18 @@ int8_t processRequest(uint8_t buffer[])
 		//process each value
 		int j = 0;
 		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
+
 		for (j = 0; j < strlen(*(params + i)); j++)	
 		{
 			if ((u_int8_t)*(*(params + i) + j) == '=')
 			{
-				equalityIndex = i;
+				equalityIndex = j + 1;
 				break;
 			}
-			//printf("%c\n", *(*(params + i) + j));
 		}
-		printf("Data: %s\n", &(*(*(params + i) + equalityIndex)));
+		data[i] = atoi(&(*(*(params + i) + equalityIndex)));		
 		equalityIndex = 0;
-		//data[i] = atoi(*(params + i + equalityIndex));		
+		printf("Data at %d = %d\n", i, data[i]);
 	}
 
 	free(params);
@@ -156,8 +156,8 @@ int main()
 		if (result == -27)
 			break;
 		printf("Processed Request: %d\n", requestCount);
-		uint8_t response[] = "HTTP/1.1 200 OK \r\n The server recieved your request!\r\n";
-		send(connfd, &response, sizeof(response), 0);
+		uint8_t response[256] = "The server recieved your request!\n";
+		write(connfd, &response, sizeof(response));
 		close(connfd);
 	}
 	printf("Exiting server\n");
