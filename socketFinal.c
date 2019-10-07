@@ -4,10 +4,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <math.h>
+#include <stdbool.h>
 
 struct pixelData
 {
 	uint8_t x, y, r, g, b;
+};
+struct postData
+{
+	char name;
+	uint8_t value;
 };
 
 uint8_t * trim (uint8_t * input)
@@ -35,7 +42,7 @@ uint8_t * trim (uint8_t * input)
 	return input;
 }
 
-int8_t processRequest(uint8_t buffer[]) 
+int8_t processRequest(uint8_t buffer[], struct pixelData * pxl) 
 {
 	printf("Processing Request\n");
 	uint8_t header[4];
@@ -45,7 +52,7 @@ int8_t processRequest(uint8_t buffer[])
 		printf("ERROR: This server only processes POST requests\n");
 		return -1;
 	}
-	
+	//TODO: Finish splitting request at new line
 	uint8_t **array = (uint8_t**) malloc(24);
 	uint8_t * token;
 	token = strtok(buffer, "\n");
@@ -64,17 +71,18 @@ int8_t processRequest(uint8_t buffer[])
 		return -27;
 	}
 	uint8_t **params = (uint8_t**) malloc(16);
-	uint8_t *paramToken = strtok(request, ",");
+	uint8_t *paramToken = strtok(request, "&");
 	int paramCount = 0;
 	while (paramToken != NULL)
 	{
 		*(params + paramCount) = paramToken;
 		paramCount++;
-		paramToken = strtok(NULL, ",");
+		paramToken = strtok(NULL, "&");
 	}
 
-	uint8_t data[5];
+	struct postData parsedParameters[paramCount] /*= malloc(sizeof(*parsedParameters)*(paramCount))*/;
 	int equalityIndex = 0;
+	int tempValue = 0;
 	for (int i = 0; i < paramCount; i++)
 	{
 		if (*(params + i) == NULL)
@@ -82,22 +90,73 @@ int8_t processRequest(uint8_t buffer[])
 		//process each value
 		int j = 0;
 		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
-
 		for (j = 0; j < strlen(*(params + i)); j++)	
 		{
 			if ((u_int8_t)*(*(params + i) + j) == '=')
 			{
-				equalityIndex = j + 1;
+				equalityIndex = j;
 				break;
 			}
+			//printf("%c\n", *(*(params + i) + j));
 		}
-		data[i] = atoi(&(*(*(params + i) + equalityIndex)));		
+		tempValue = atoi(&(*(*(params + i) + equalityIndex+1)));
+		(parsedParameters+i)->name = (char) **(params+i);
+		(parsedParameters+i)->value = tempValue;
 		equalityIndex = 0;
-		printf("Data at %d = %d\n", i, data[i]);
+	}
+
+	bool r = false;
+	bool g = false;
+	bool b = false;
+	bool x = false;
+	bool y = false;
+
+	for (int i = 0; i < paramCount; i++) {
+		if (parsedParameters[i].name == "r"[0]) {
+			if (r) {
+				return -2;
+			}
+			pxl->r = parsedParameters[i].value;
+			r = true;
+		}
+		if (parsedParameters[i].name == "g"[0]) {
+			if (g) {
+				return -2;
+			}
+			pxl->g = parsedParameters[i].value;
+			g = true;
+		}
+		if (parsedParameters[i].name == "b"[0]) {
+			if (b) {
+				return -2;
+			}
+			pxl->b = parsedParameters[i].value;
+			b = true;
+		}
+		if (parsedParameters[i].name == "x"[0]) {
+			if (x) {
+				return -2;
+			}
+			pxl->x = parsedParameters[i].value;
+			x = true;
+		}
+		if (parsedParameters[i].name == "y"[0]) {
+			if (y) {
+				return -2;
+			}
+			pxl->y = parsedParameters[i].value;
+			y = true;
+		}
 	}
 
 	free(params);
-	return 0;
+	//free(parsedParameters);
+
+	if (x && y && r && g && b) {
+		return 0;
+	}
+
+	return -1;
 }
 
 int main() 
@@ -151,13 +210,19 @@ int main()
 			printf("ERROR: Read negative bytes\n");
 			return -1;
 		}
-		int8_t result = processRequest(recvLine);
+		struct pixelData query;
+		int8_t result = processRequest(recvLine, &query);
 		requestCount++;
-		if (result == -27)
+		if (result == -27) 
+		{
 			break;
+		} else if (result == 0) 
+		{
+			printf("x:%d;y:%d;r:%d;g:%d;b:%d;",query.x,query.y,query.r,query.g,query.b);
+		}
 		printf("Processed Request: %d\n", requestCount);
-		uint8_t response[256] = "The server recieved your request!\n";
-		write(connfd, &response, sizeof(response));
+		uint8_t response[] = "HTTP/1.1 200 OK \r\n The server recieved your request!\r\n";
+		send(connfd, &response, sizeof(response), 0);
 		close(connfd);
 	}
 	printf("Exiting server\n");
