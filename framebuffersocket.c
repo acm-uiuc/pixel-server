@@ -7,6 +7,9 @@
 #include <sys/mman.h>
 #include <sys/kd.h>
 #include <linux/input.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 int fb = 0;
 int console;
@@ -22,6 +25,113 @@ double yScale = 1024.0;
 double xScale = 1280.0;
 double targetXRes;
 double targetYRes;
+
+//TODO: Abstract Socket code into socket.h
+//Socket Variables
+
+int listenfd, connfd, n;
+struct sockaddr_in serverAdress;
+uint8_t buff[4096 + 1];
+uint8_t recvLine[4096 + 1];
+
+//Socket Methods
+
+int openSocket()
+{
+	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+	{
+		printf("Error\n");
+		return -1;
+	}
+
+	bzero(&serverAdress, sizeof(serverAdress));
+	serverAdress.sin_family = AF_INET;
+	serverAdress.sin_addr.s_addr = htonl(INADDR_ANY);
+	serverAdress.sin_port = htons(1800);
+	return 0;
+}
+
+int bindSocket()
+{
+	if ((bind(listenfd, (struct sockaddr *) &serverAdress, sizeof(serverAdress))) < 0)
+	{
+		printf("Error 2\n");
+		return -1;
+	}
+	return 0;
+}
+
+//Processing request
+
+int8_t processRequest(uint8_t buffer[]) 
+{
+	printf("Processing Request\n");
+	uint8_t header[4];
+	//TODO: Fix request identification
+	/*
+	   strncpy(header, buffer, 4);
+	   if (strcmp(header, "POST") != 0)
+	   {
+	   printf("ERROR: This server only processes POST requests\n");
+	   return -1;
+	   }
+	 */
+	uint8_t **array = (uint8_t**) malloc(24);
+	uint8_t * token;
+	token = strtok(buffer, "\n");
+	int32_t index = 0;
+	while (token != NULL) 
+	{
+		*(array + index) = token;
+		index += 1;
+		token = strtok(NULL, "\n");
+	}
+	uint8_t * request = *(array + index - 1);
+	printf("%s\n", request);
+	free(array);
+	if (strncmp(request, "action=exit", 11) == 0)
+	{
+		return -27;
+	}
+	uint8_t **params = (uint8_t**) malloc(16);
+	uint8_t *paramToken = strtok(request, ",");
+	int paramCount = 0;
+	while (paramToken != NULL)
+	{
+		*(params + paramCount) = paramToken;
+		paramCount++;
+		paramToken = strtok(NULL, ",");
+	}
+
+	uint8_t data[5];
+	int equalityIndex = 0;
+	for (int i = 0; i < paramCount; i++)
+	{
+		if (*(params + i) == NULL)
+			break;
+		//process each value
+		int j = 0;
+		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
+
+		for (j = 0; j < strlen(*(params + i)); j++)	
+		{
+			if ((u_int8_t)*(*(params + i) + j) == '=')
+			{
+				equalityIndex = j + 1;
+				break;
+			}
+		}
+		data[i] = atoi(&(*(*(params + i) + equalityIndex)));		
+		equalityIndex = 0;
+		printf("Data at %d = %d\n", i, data[i]);
+	}
+
+	drawPixel(data[0], data[1], data[2], data[3], data[4], 0);
+
+	free(params);
+	return 0;
+}
+
 
 int loadFrameBuffer()
 {
@@ -77,7 +187,7 @@ void disableConsoleGraphics()
 
 void loadKeyBoard()
 {
-	keyboard = open("/dev/input/event4", O_RDONLY);
+	keyboard = open("/dev/input/event2", O_RDONLY);
 }
 
 void closeKeyBoard()
@@ -88,7 +198,7 @@ void closeKeyBoard()
 void loadScale(double xRes, double yRes)
 {
 	printf("Loading Scale (%f, %f): \n", xRes, yRes);
-	if (xRes < 1.0 || yRes < 1) 
+	if (xRes < 1.0 || yRes < 1 || xRes > vinfo.xres || yRes > vinfo.yres) 
 	{
 		printf("ERROR:Use proper scaling!\n");
 	} 
@@ -132,7 +242,7 @@ int main()
 {
 	printf("Starting framebuffer...\n");
 	//Redirect printf to log.txt - Overwrites last log file
-	freopen("log.txt", "w", stdout);
+	//	freopen("log.txt", "w", stdout);
 	loadKeyBoard();
 	// Open the file for reading and writing
 	if(loadFrameBuffer() != 1)
@@ -168,25 +278,72 @@ int main()
 			int r = rand() % 256;
 			int g = rand() % 256;
 			int b = rand() % 256;
-			drawPixel(x, y, r, g, b, 0);
+			drawPixel(x, y, 255, 0, 0, 0);
 		}
 	}
 	printf("Cleared Screen\n");
-	drawPixel(64, 64, 0, 0, 0, 0);
+	
+	//OLD FRAMEBUFFERCODE
+	// while (1)
+	// {
+	// 	read(keyboard, &keyEvent, sizeof(struct input_event));
+	// 	if (keyEvent.type == 1 && keyEvent.code == 16)
+	// 	{
+	// 		munmap(frameBuffer, screensize);
+	// 		close(fb);
+	// 		closeKeyBoard();
+	// 		disableConsoleGraphics();
+	// 		close(console);
+	// 		system("clear");
+	// 		break;
+	// 	}
+	// }
+
+	printf("Opening Socket= %d\n", openSocket());
+	printf("Binding Socket = %d\n", bindSocket());
+
+	if ((listen(listenfd, 10)) < 0)
+	{
+		printf("ERROR: Failed to listen for connections\n");
+		return -1;
+	}
 
 	while (1)
 	{
-		read(keyboard, &keyEvent, sizeof(struct input_event));
-		if (keyEvent.type == 1 && keyEvent.code == 16)
+		struct sockaddr_in addr;
+		socklen_t addr_len;
+
+		printf("\nWaiting for connection\n");
+
+		connfd = accept(listenfd, (struct sockaddr *) NULL, NULL);
+
+		memset(recvLine, 0, 4096);
+
+		if ((n = read(connfd, recvLine, 4096 - 1)) > 0)
+			memcpy(buff, recvLine, sizeof(buff));
+		if (n < 0) 
 		{
-			munmap(frameBuffer, screensize);
-			close(fb);
-			closeKeyBoard();
-			disableConsoleGraphics();
-			close(console);
-			system("clear");
-			break;
+			printf("ERROR: Read negative bytes\n");
+			return -1;
 		}
+		int8_t result = processRequest(recvLine);
+		if (result == -27)
+			break;
+		//TODO: Edit the response so it reflects the statust of the request (i.e: Error codes or if the request was processed)
+		uint8_t response[256] = "The server recieved your request!\n";
+		write(connfd, (char *) &response, sizeof(response));
+		close(connfd);
 	}
+	//TODO: Abstract the following lines into a cleanup function
+	printf("Exiting server\n");
+	close(listenfd);
+	munmap(frameBuffer, screensize);
+	close(fb);
+	closeKeyBoard();
+	disableConsoleGraphics();
+	close(console);
+	system("clear");
+
+
 	return 0;
 }
