@@ -1,3 +1,4 @@
+#include "framebuffer.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,21 +9,25 @@
 #include <sys/kd.h>
 #include <linux/input.h>
 
-int fbfd = 0;
+int fb = 0;
 int console;
-int keyboard;
-struct input_event keyEvent;
+//int keyboard;
+//struct input_event keyEvent;
 struct fb_var_screeninfo vinfo;
 struct fb_fix_screeninfo finfo;
 long int screensize = 0;
-char *fbp = 0;
+unsigned char *frameBuffer = 0;
 int x = 0, y = 0;
 long int location = 0;
+double yScale = 1024.0;
+double xScale = 1280.0;
+double targetXRes;
+double targetYRes;
 
-int loadFrameBuffer()
+int openFrameBuffer()
 {
-	fbfd = open("/dev/fb0", O_RDWR);
-	if (fbfd == -1) 
+	fb = open("/dev/fb0", O_RDWR);
+	if (fb == -1) 
 	{
 		printf("Error: cannot open framebuffer device\n");
 		return -1;
@@ -30,14 +35,14 @@ int loadFrameBuffer()
 	printf("The framebuffer device was opened successfully.\n");
 
 	// Get fixed screen information
-	if (ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo) == -1) 
+	if (ioctl(fb, FBIOGET_FSCREENINFO, &finfo) == -1) 
 	{
 		printf("Error reading fixed information\n");
 		return -1;
 	}
 
 	// Get variable screen information
-	if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo) == -1) {
+	if (ioctl(fb, FBIOGET_VSCREENINFO, &vinfo) == -1) {
 		printf("Error reading variable information\n");
 		return -1;
 	}
@@ -55,20 +60,24 @@ int loadConsole()
 	return 1;
 }
 
-void enableConsoleGraphics()
+int enableConsoleGraphics()
 {
 	if (ioctl(console, KDSETMODE, KD_GRAPHICS) == -1)
 	{
 		printf("Error setting console\n");
+		return -1;
 	}
+	return 1;
 }
 
-void disableConsoleGraphics()
+int disableConsoleGraphics()
 {
 	if(ioctl(console, KDSETMODE, KD_TEXT) == -1)
 	{
 		printf("Could not switch to text\n");
+		return -1;
 	}
+	return 1;
 }
 
 void loadKeyBoard()
@@ -81,11 +90,74 @@ void closeKeyBoard()
 	close(keyboard);
 }
 
-int main()
+int loadScale(double xRes, double yRes)
 {
+	printf("Loading Scale (%f, %f): \n", xRes, yRes);
+	if (xRes < 1.0 || yRes < 1 || xRes > vinfo.xres || yRes > vinfo.yres) 
+	{
+		printf("ERROR:Use proper scaling!\n");
+		return -1;
+	} 
+	else 
+	{
+		targetXRes = xRes;
+		targetYRes = yRes;
+		xScale = (double) (vinfo.xres / xRes);
+		yScale = (double) (vinfo.yres / yRes);
+		printf("xRes = %f, yRes = %f, xScale = %f, yScale = %f\n", targetXRes, targetYRes, xScale, yScale);
+	}
+	return 1;
+}
+
+int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
+{
+	printf("Draw Request: (%d, %d) -> ", xPos, yPos);
+	if ((xPos < 0 || xPos >= targetXRes) || (yPos < 0 || yPos >= targetYRes)) 
+	{
+		printf("ERROR: Pixel position out of bounds\n");
+		return -1;
+	}
+	xPos *= xScale;
+	yPos *= yScale;
+	printf("Drawing pixel at: (%d, %d). RGB = (%d, %d, %d)\n", xPos, yPos, r, g, b);
+	for (int i = 0; i < xScale; i++)
+	{
+		for (int j = 0; j < yScale; j++)
+		{
+			location = (xPos + vinfo.xoffset + i) * (vinfo.bits_per_pixel/8) + (yPos + vinfo.yoffset + j) * finfo.line_length;
+			*(frameBuffer + location) = b;
+			*(frameBuffer + location + 1) = g;
+			*(frameBuffer + location + 2) = r;
+			*(frameBuffer + location + 3) = a;
+
+		}
+	}
+	return 1;
+}
+
+int clearScreen(unsigned char r, unsigned char g, unsigned char b)
+{
+	printf("Starting to clear screen...\n");
+	for (y = 0; y < targetYRes; y++)
+	{
+		for (x = 0; x < targetXRes; x++)
+		{
+			drawPixel(x, y, r, g, b, 0);
+		}
+	}
+	printf("Cleared Screen\n");
+
+}
+
+
+int loadFrameBuffer()
+{
+	printf("Starting framebuffer...\n");
+	//Redirect printf to log.txt - Overwrites last log file
+	freopen("log.txt", "w", stdout);
 	loadKeyBoard();
 	// Open the file for reading and writing
-	if(loadFrameBuffer() != 1)
+	if(openFrameBuffer() != 1)
 		return -1;
 
 	printf("%dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
@@ -98,103 +170,22 @@ int main()
 	// Figure out the size of the screen in bytes
 	screensize = finfo.smem_len;
 	// Map the device to memory
-	fbp = (char *)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
+	frameBuffer = (unsigned char *)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
 
-	if ((char)fbp == -1) 
+	if ((unsigned char)frameBuffer == -1) 
 	{
 		printf("Error: failed to map framebuffer device to memory\n");
 		return -1;
 	}
 	printf("The framebuffer device was mapped to memory successfully.\n");
+}
 
-
-	for (y = 0; y < vinfo.yres; y++)
-	{
-		for (x = 0; x < vinfo.xres; x++)
-		{
-			/*
-			   int r = rand() % 256;
-			   int g = rand() % 256;
-			   int b = rand() % 256;
-			   */
-			int r = 0;
-			int g = 0;
-			int b = 0;
-			location = (x+vinfo.xoffset) * (vinfo.bits_per_pixel/8) +
-				(y+vinfo.yoffset) * finfo.line_length;
-			*(fbp + location) = b;
-			*(fbp + location + 1) = g;
-			*(fbp + location + 2) = r;
-			*(fbp + location + 3) = 0;
-		}
-	}
-
-	x = vinfo.xres / 2;
-	y = vinfo.yres / 2;	
-
-	int r = 255;
-	int g  = 0;
-	int b = 0;
-
-	while (1)
-	{
-		read(keyboard, &keyEvent, sizeof(struct input_event));
-
-		location = (x+vinfo.xoffset) * (vinfo.bits_per_pixel/8) +
-			(y+vinfo.yoffset) * finfo.line_length;
-
-		if (keyEvent.type == 1)
-		{
-
-			if (keyEvent.code == 1)
-			{
-				munmap(fbp, screensize);
-				close(fbfd);
-				closeKeyBoard();
-				disableConsoleGraphics();
-				close(console);
-				system("clear");
-				break;
-			}
-			if (keyEvent.code == 106)
-			{
-				// right arrow
-				*(fbp + location) = b;
-				*(fbp + location + 1) = g;
-				*(fbp + location + 2) = r;
-				*(fbp + location + 3) = 0;
-				x++;
-			}
-			if (keyEvent.code == 105)
-			{
-				// left arrow
-				*(fbp + location) = b;
-				*(fbp + location + 1) = g;
-				*(fbp + location + 2) = r;
-				*(fbp + location + 3) = 0;
-				x--;	
-			}
-			if (keyEvent.code == 103)
-			{
-				// right arrow
-				*(fbp + location) = b;
-				*(fbp + location + 1) = g;
-				*(fbp + location + 2) = r;
-				*(fbp + location + 3) = 0;
-				y--;	
-			}
-
-			if (keyEvent.code == 108)
-			{
-				// right arrow
-				*(fbp + location) = b;
-				*(fbp + location + 1) = g;
-				*(fbp + location + 2) = r;
-				*(fbp + location + 3) = 0;
-				y++;	
-			}
-		}
-
-	}
-	return 0;
+int closeFrameBuffer()
+{
+	munmap(frameBuffer, screensize);
+	close(fb);
+	closeKeyBoard();
+	disableConsoleGraphics();
+	close(console);
+	return 1;
 }
