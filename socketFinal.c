@@ -45,6 +45,7 @@ uint8_t * trim (uint8_t * input)
 int8_t processRequest(uint8_t buffer[], struct pixelData * pxl) 
 {
 	printf("Processing Request\n");
+	/*
 	uint8_t header[4];
 	strncpy(header, buffer, 4);
 	if (strcmp(header, "POST") != 0)
@@ -53,54 +54,55 @@ int8_t processRequest(uint8_t buffer[], struct pixelData * pxl)
 		return -1;
 	}
 	//TODO: Finish splitting request at new line
-	uint8_t **array = (uint8_t**) malloc(24);
+	*/
+	uint8_t *array[8];
 	uint8_t * token;
 	token = strtok(buffer, "\n");
 	int32_t index = 0;
 	while (token != NULL) 
 	{
-		*(array + index) = token;
+		array[index] = token;
+		printf("Array at %d = %s\n", index, array[index]);
 		index += 1;
 		token = strtok(NULL, "\n");
 	}
-	uint8_t * request = *(array + index - 1);
+	uint8_t * request = array[index - 1];
 	printf("%s\n", request);
-	free(array);
 	if (strncmp(request, "action=exit", 11) == 0)
 	{
 		return -27;
 	}
-	uint8_t **params = (uint8_t**) malloc(16);
+
+	uint8_t *params[10];
 	uint8_t *paramToken = strtok(request, "&");
 	int paramCount = 0;
 	while (paramToken != NULL)
 	{
-		*(params + paramCount) = paramToken;
+		params[paramCount] = paramToken;
 		paramCount++;
 		paramToken = strtok(NULL, "&");
 	}
 
-	struct postData parsedParameters[paramCount] /*= malloc(sizeof(*parsedParameters)*(paramCount))*/;
+	struct postData parsedParameters[paramCount];
 	int equalityIndex = 0;
 	int tempValue = 0;
 	for (int i = 0; i < paramCount; i++)
 	{
-		if (*(params + i) == NULL)
+		if (params[i] == NULL)
 			break;
 		//process each value
 		int j = 0;
-		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
-		for (j = 0; j < strlen(*(params + i)); j++)	
+		printf("Parsing %s, with length = %d\n", params[i], strlen(params[i]));
+		for (j = 0; j < strlen(params[i]); j++)	
 		{
-			if ((u_int8_t)*(*(params + i) + j) == '=')
+			if ((u_int8_t) (*(params[i] + j)) == '=')
 			{
 				equalityIndex = j;
 				break;
 			}
-			//printf("%c\n", *(*(params + i) + j));
 		}
-		tempValue = atoi(&(*(*(params + i) + equalityIndex+1)));
-		(parsedParameters+i)->name = (char) **(params+i);
+		tempValue = atoi((params[i] + equalityIndex + 1));
+		(parsedParameters+i)->name = (char) *(params[i]);
 		(parsedParameters+i)->value = tempValue;
 		equalityIndex = 0;
 	}
@@ -148,10 +150,7 @@ int8_t processRequest(uint8_t buffer[], struct pixelData * pxl)
 			y = true;
 		}
 	}
-
-	free(params);
-	//free(parsedParameters);
-
+	
 	if (x && y && r && g && b) {
 		return 0;
 	}
