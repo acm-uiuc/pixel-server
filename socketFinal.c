@@ -17,6 +17,11 @@ struct postData
 	uint8_t value;
 };
 
+int sendImage()
+{
+	printf("Sending image\n");
+}
+
 uint8_t * trim (uint8_t * input)
 {
 	//TODO: Fix malloc over top size error!
@@ -45,16 +50,10 @@ uint8_t * trim (uint8_t * input)
 int8_t processRequest(uint8_t buffer[], struct pixelData * pxl) 
 {
 	printf("Processing Request\n");
-	/*
+	
 	uint8_t header[4];
 	strncpy(header, buffer, 4);
-	if (strcmp(header, "POST") != 0)
-	{
-		printf("ERROR: This server only processes POST requests\n");
-		return -1;
-	}
-	//TODO: Finish splitting request at new line
-	*/
+	
 	uint8_t *array[8];
 	uint8_t * token;
 	token = strtok(buffer, "\n");
@@ -71,6 +70,10 @@ int8_t processRequest(uint8_t buffer[], struct pixelData * pxl)
 	if (strncmp(request, "action=exit", 11) == 0)
 	{
 		return -27;
+	} else if (strncmp(request, "state", 5) == 0) 
+	{
+		sendImage();
+		return 27;
 	}
 
 	uint8_t *params[10];
@@ -160,6 +163,21 @@ int8_t processRequest(uint8_t buffer[], struct pixelData * pxl)
 
 int main() 
 {
+
+	FILE * pic;
+	int size;
+	pic = fopen("test.jpg", "rb");
+	if (pic == NULL)
+	{
+		printf("Error opening image file\n");
+		return -1;
+	}
+	char imageBuffer[1024];
+	fseek(pic, 0, SEEK_END);
+	size = ftell(pic);
+	printf("Img Size: %d\n", size);
+	fseek(pic, 0, SEEK_SET);
+
 	uint32_t requestCount = 0;
 	int32_t listenfd, connfd, n;
 	struct sockaddr_in serverAdress;
@@ -215,6 +233,15 @@ int main()
 		if (result == -27) 
 		{
 			break;
+		} else if (result == 27)
+		{
+			while (!feof(pic))
+			{
+				printf("%d\n", fread(&imageBuffer, sizeof(imageBuffer), 1, pic));
+				printf("W=%d\n", write(connfd, &imageBuffer, sizeof(imageBuffer)));
+
+			}
+			fseek(pic, 0, SEEK_SET);
 		} else if (result == 0) 
 		{
 			printf("x:%d;y:%d;r:%d;g:%d;b:%d;",query.x,query.y,query.r,query.g,query.b);
