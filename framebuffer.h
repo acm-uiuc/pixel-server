@@ -7,6 +7,8 @@ int keyboard;
 
 bool writing;
 
+double targetXRes;
+double targetYRes;
 int openFrameBuffer();
 int loadConsole();
 int enableConsoleGraphics();

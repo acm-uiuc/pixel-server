@@ -9,6 +9,17 @@
 #include <string.h>
 #include <unistd.h>
 
+struct pixelData
+{
+	int x, y, r, g, b;
+};
+
+struct postData
+{
+	char name;
+	int value;
+};
+
 int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
 unsigned char buff[4096 + 1];
@@ -75,42 +86,103 @@ char processRequest(unsigned char buffer[])
 		return -27;
 	}
 	unsigned char **params = (unsigned char**) malloc(16);
-	unsigned char *paramToken = strtok(request, ",");
+	unsigned char *paramToken = strtok(request, "&");
 	int paramCount = 0;
 	while (paramToken != NULL)
 	{
 		*(params + paramCount) = paramToken;
 		paramCount++;
-		paramToken = strtok(NULL, ",");
+		paramToken = strtok(NULL, "&");
 	}
 
-	unsigned char data[5];
+	struct postData parsedParameters[paramCount];
+	struct pixelData pxl;
 	int equalityIndex = 0;
+	int tempValue = 0;
 	for (int i = 0; i < paramCount; i++)
 	{
-		if (*(params + i) == NULL)
+		if (params[i] == NULL)
 			break;
 		//process each value
 		int j = 0;
-		//printf("Parsing %s, with length = %d\n", *(params + i), (int) strlen(*(params + i)));
-
-		for (j = 0; j < (int) strlen(*(params + i)); j++)	
+		printf("Parsing %s, with length = %d\n", params[i], strlen(params[i]));
+		for (j = 0; j < strlen(params[i]); j++)	
 		{
-			if ((unsigned char)*(*(params + i) + j) == '=')
+			if (*(params[i] + j) == '=')
 			{
-				equalityIndex = j + 1;
+				equalityIndex = j;
 				break;
 			}
 		}
-		data[i] = atoi(&(*(*(params + i) + equalityIndex)));		
+		tempValue = atoi((params[i] + equalityIndex + 1));
+		printf("found value %d\n", tempValue);
+		(parsedParameters+i)->name = (char) *(params[i]);
+		(parsedParameters+i)->value = tempValue;
 		equalityIndex = 0;
-		printf("Data at %d = %d\n", i, data[i]);
 	}
 
-	drawPixel(data[0], data[1], data[2], data[3], data[4], 0);
-	drawCount++;
+	bool r = false;
+	bool g = false;
+	bool b = false;
+	bool x = false;
+	bool y = false;
+
+	for (int i = 0; i < paramCount; i++) {
+		printf("1\n");
+		if (parsedParameters[i].name == "r"[0]) {
+			if (r) {
+				return -2;
+			}
+			pxl.r = parsedParameters[i].value;
+			r = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "g"[0]) {
+			if (g) {
+				return -2;
+			}
+			pxl.g = parsedParameters[i].value;
+			g = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "b"[0]) {
+			if (b) {
+				return -2;
+			}
+			pxl.b = parsedParameters[i].value;
+			b = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "x"[0]) {
+			if (x) {
+				return -2;
+			}
+			pxl.x = parsedParameters[i].value;
+			x = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "y"[0]) {
+			if (y) {
+				return -2;
+			}
+			pxl.y = parsedParameters[i].value;
+			y = true;
+			printf("2\n");
+		}
+	}
+
+	if (x && y && r && g && b) {
+		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.r >= 0 && pxl.g >= 0 && pxl.b >= 0 && pxl.x < targetXRes && pxl.y < targetYRes && pxl.r < 256 && pxl.g < 256 && pxl.b < 256) {
+			drawPixel(pxl.x,pxl.y,pxl.r,pxl.g,pxl.b,0);
+			drawCount++;
+			return 0;
+		} else {
+			return -3;
+		}
+	}
+
 	free(params);
-	return 0;
+	return -1;
 }
 
 int main()
@@ -162,8 +234,18 @@ int main()
 		char result = processRequest(recvLine);
 		if (result == -27)
 			break;
-		//TODO: Edit the response so it reflects the statust of the request (i.e: Error codes or if the request was processed)
-		strcpy(response, "The server recieved your request!\n");
+		if (result == 0)
+			strcpy(response, "The server recieved your request!\n");
+		
+		if (result == -1)
+			strcpy(response, "Not enough information was recieved in order to draw a pixel\n");
+
+		if (result == -2)
+			strcpy(response, "Some fields were sent multiple times, so your request wasn't processed\n");
+
+		if (result == -3)
+			strcpy(response, "Some values were out of bounds\n");
+
 		write(connfd, response, strlen(response));
 		close(connfd);
 		memset(response, 0, strlen(response));
