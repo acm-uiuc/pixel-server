@@ -1,3 +1,4 @@
+#include "structs.h"
 #include "framebuffer.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -8,11 +9,12 @@
 #include <sys/mman.h>
 #include <sys/kd.h>
 #include <linux/input.h>
+#include <pthread.h>
+#include <time.h>
+#include <png.h>
 
 int fb = 0;
 int console;
-//int keyboard;
-//struct input_event keyEvent;
 struct fb_var_screeninfo vinfo;
 struct fb_fix_screeninfo finfo;
 long int screensize = 0;
@@ -23,6 +25,13 @@ double yScale = 1024.0;
 double xScale = 1280.0;
 double targetXRes;
 double targetYRes;
+
+FILE * output;
+
+pthread_t imageThread;
+time_t start;
+time_t end;
+float deltaTime = 0;
 
 int openFrameBuffer()
 {
@@ -120,6 +129,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 	xPos *= xScale;
 	yPos *= yScale;
 	printf("Drawing pixel at: (%d, %d). RGB = (%d, %d, %d)\n", xPos, yPos, r, g, b);
+	writing = true;
 	for (int i = 0; i < xScale; i++)
 	{
 		for (int j = 0; j < yScale; j++)
@@ -132,7 +142,17 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 
 		}
 	}
+	writing = false;
 	return 1;
+}
+
+void getPixelData(struct pixelData * data)
+{
+
+	location = (data->x * xScale + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (data->y * yScale + vinfo.yoffset) * finfo.line_length;
+	data->b = *(frameBuffer + location);
+	data->g = *(frameBuffer + location + 1);
+	data->r = *(frameBuffer + location + 2);
 }
 
 int clearScreen(unsigned char r, unsigned char g, unsigned char b)
@@ -154,7 +174,7 @@ int loadFrameBuffer()
 {
 	printf("Starting framebuffer...\n");
 	//Redirect printf to log.txt - Overwrites last log file
-	freopen("log.txt", "w", stdout);
+	//freopen("log.txt", "w", stdout);
 	loadKeyBoard();
 	// Open the file for reading and writing
 	if(openFrameBuffer() != 1)
@@ -172,7 +192,7 @@ int loadFrameBuffer()
 	// Map the device to memory
 	frameBuffer = (unsigned char *)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
 
-	if ((unsigned char)frameBuffer == -1) 
+	if (frameBuffer == NULL) 
 	{
 		printf("Error: failed to map framebuffer device to memory\n");
 		return -1;
@@ -187,5 +207,92 @@ int closeFrameBuffer()
 	closeKeyBoard();
 	disableConsoleGraphics();
 	close(console);
+	if (fclose(output) != 0)
+		printf("Error closing image file!\n");
 	return 1;
 }
+
+void* writeImage(void* args)
+{
+
+	while(true)
+	{
+		start = time(NULL);
+		sleep(5);
+		end = time(NULL);
+		deltaTime += end - start;
+
+		if (deltaTime >= 60 * 0.15 && writing == false)
+		{
+			deltaTime = 0;
+			output = fopen("state.ppm", "wb+");
+			if (output == NULL)
+			{
+				printf("Error opening image file!\n");
+				return -1;
+			}
+			printf("Writing PPM Header\n");
+			fprintf(output, "P3\n%d %d\n255\n", (int)vinfo.xres, (int)vinfo.yres);
+
+			struct pixelData data;
+			for (double i = 0; i < vinfo.yres; i++)
+			{
+				for (double j = 0; j < vinfo.xres; j++)
+				{
+					data.x = j;
+					data.y = i;
+					//getPixelData(&data);
+
+					location = (data.x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (data.y + vinfo.yoffset) * finfo.line_length;
+					data.b = *(frameBuffer + location);
+					data.g = *(frameBuffer + location + 1);
+					data.r = *(frameBuffer + location + 2);
+					if (j == 0)
+						fprintf(output, "%d %d %d", data.r, data.g, data.b);
+					else
+						fprintf(output, " %d %d %d", data.r, data.g, data.b);
+
+		//			printf("Pixel Data at: (%d, %d) = (%d,%d,%d)\n", j, i, data.r, data.g, data.b);
+				}
+				//printf("Finished writing row: %d\n", i);
+				fprintf(output, "\n");
+			}
+			printf("Finished writing to file\n");
+		}
+	}
+}
+
+
+void* writePngImage(void* args)
+{
+
+	while(true)
+	{
+		start = time(NULL);
+		sleep(30);
+		end = time(NULL);
+		deltaTime += end - start;
+
+		if (deltaTime >= 60 * 1 && writing == false)
+		{
+			deltaTime = 0;
+			output = fopen("state.png", "wb+");
+			if (output == NULL)
+			{
+				printf("Error opening image file!\n");
+				return -1;
+			}
+			png_structp png = NULL;
+			png_infop info = NULL;
+			png_bytep row = NULL;
+
+
+		}
+	}
+}
+
+int saveState()
+{
+	return (pthread_create(&imageThread, NULL, writeImage, NULL));
+}
+

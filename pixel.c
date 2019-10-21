@@ -5,13 +5,16 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <string.h>
+#include <unistd.h>
 
 int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
 unsigned char buff[4096 + 1];
 unsigned char recvLine[4096 + 1];
-unsigned char* response;
+unsigned char * response;
+unsigned int drawCount = 0;
 
 int openSocket()
 {
@@ -57,7 +60,7 @@ char processRequest(unsigned char buffer[])
 	unsigned char **array = (unsigned char**) malloc(24);
 	unsigned char * token;
 	token = strtok(buffer, "\n");
-	int32_t index = 0;
+	int index = 0;
 	while (token != NULL) 
 	{
 		*(array + index) = token;
@@ -89,9 +92,9 @@ char processRequest(unsigned char buffer[])
 			break;
 		//process each value
 		int j = 0;
-		printf("Parsing %s, with length = %d\n", *(params + i), strlen(*(params + i)));
+		//printf("Parsing %s, with length = %d\n", *(params + i), (int) strlen(*(params + i)));
 
-		for (j = 0; j < strlen(*(params + i)); j++)	
+		for (j = 0; j < (int) strlen(*(params + i)); j++)	
 		{
 			if ((unsigned char)*(*(params + i) + j) == '=')
 			{
@@ -105,7 +108,7 @@ char processRequest(unsigned char buffer[])
 	}
 
 	drawPixel(data[0], data[1], data[2], data[3], data[4], 0);
-
+	drawCount++;
 	free(params);
 	return 0;
 }
@@ -114,7 +117,7 @@ int main()
 {
 	int openResult = openSocket();
 	int bindResult = bindSocket();
-	if (openResult < 0|| bindResult < 0)
+	if (openResult < 0 || bindResult < 0)
 	{
 		printf("Error opening and binding socket\n");
 		return -1;
@@ -122,9 +125,9 @@ int main()
 
 	printf("Starting framebuffer\n");
 	loadFrameBuffer();
-	loadScale(512, 512);
-	clearScreen(128, 0, 128);
-
+	loadScale(128, 128);
+	clearScreen(255, 0, 0);
+	saveState();
 	if ((listen(listenfd, 10)) < 0)
 	{
 		printf("ERROR: Failed to listen for connections\n");
@@ -133,21 +136,21 @@ int main()
 	response = (unsigned char*) malloc(256);
 	while (1)
 	{
-		/*
-		   read(keyboard, &keyEvent, sizeof(struct input_event));
-		   if (keyEvent.type == 1 && keyEvent.code == 16)
-		   {
-		   closeFrameBuffer();
-		   break;	
-		   }
-		 */
-		struct sockaddr_in addr;
-		socklen_t addr_len;
+		if (drawCount >= 64)
+		{
+	//		saveState();
+			drawCount = 0;
+		}
+
+		struct sockaddr_in client;
+		socklen_t clientLen;
 
 		printf("\nWaiting for connection\n");
+		
+		connfd = accept(listenfd, (struct sockaddr*) &client, &clientLen);
 
-		connfd = accept(listenfd, (struct sockaddr *) NULL, NULL);
-
+		printf("Recieved connection from %s\n", inet_ntoa(client.sin_addr));	
+		
 		memset(recvLine, 0, 4096);
 
 		if ((n = read(connfd, recvLine, 4096 - 1)) > 0)
@@ -156,7 +159,7 @@ int main()
 		{
 			printf("ERROR: Read negative bytes\n");
 		}
-		int8_t result = processRequest(recvLine);
+		char result = processRequest(recvLine);
 		if (result == -27)
 			break;
 		//TODO: Edit the response so it reflects the statust of the request (i.e: Error codes or if the request was processed)
