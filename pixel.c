@@ -68,29 +68,28 @@ char processRequest(unsigned char buffer[])
 	
 	free(header);
 	*/
-	unsigned char **array = (unsigned char**) malloc(24);
+	unsigned char *array[8];
 	unsigned char * token;
 	token = strtok(buffer, "\n");
 	int index = 0;
 	while (token != NULL) 
 	{
-		*(array + index) = token;
+		array[index] = token;
 		index += 1;
 		token = strtok(NULL, "\n");
 	}
-	unsigned char * request = *(array + index - 1);
+	unsigned char * request = array[index - 1];
 	printf("%s\n", request);
-	free(array);
 	if (strncmp(request, "action=exit", 11) == 0)
 	{
 		return -27;
 	}
-	unsigned char **params = (unsigned char**) malloc(16);
+	unsigned char *params[10];
 	unsigned char *paramToken = strtok(request, "&");
 	int paramCount = 0;
 	while (paramToken != NULL)
 	{
-		*(params + paramCount) = paramToken;
+		params[paramCount] = paramToken;
 		paramCount++;
 		paramToken = strtok(NULL, "&");
 	}
@@ -181,7 +180,6 @@ char processRequest(unsigned char buffer[])
 		}
 	}
 
-	free(params);
 	return -1;
 }
 
