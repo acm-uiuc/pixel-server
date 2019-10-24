@@ -1,4 +1,4 @@
-//#include "structs.h"
+#include "structs.h"
 #include "framebuffer.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -12,10 +12,6 @@
 #include <pthread.h>
 #include <time.h>
 #include <png.h>
-
-struct pixelData {
-	int x,y,r,g,b;
-};
 
 int fb = 0;
 int console;

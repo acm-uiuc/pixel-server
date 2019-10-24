@@ -8,17 +8,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
-
-struct pixelData
-{
-	int x, y, r, g, b;
-};
-
-struct postData
-{
-	char name;
-	int value;
-};
+#include "structs.h"
 
 int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
@@ -55,15 +45,14 @@ int bindSocket()
 char processRequest(unsigned char buffer[]) 
 {
 	printf("Processing Request\n");
-	/*
-	unsigned char *header = malloc((unsigned char *) 4);
-	//TODO: Fix request identification
+	/*	
+	char *header = (char *) malloc(4);
 	
 	strncpy(header, buffer, 4);
-	if (strcmp(header, "POST") != 0)
+	if (strcmp(header, "GET") != 0)
 	{
-		printf("ERROR: This server only processes POST requests\n");
-		return -1;
+		printf("Fetching cached image.\n");
+		return 1;
 	}
 	
 	free(header);
@@ -84,6 +73,8 @@ char processRequest(unsigned char buffer[])
 	{
 		return -27;
 	}
+	if (strncmp(request, "get=state", 9) == 0)
+		return 1;
 	unsigned char *params[10];
 	unsigned char *paramToken = strtok(request, "&");
 	int paramCount = 0;
@@ -243,7 +234,11 @@ int main()
 
 		if (result == -3)
 			strcpy(response, "Some values were out of bounds\n");
-
+		if (result == 1)
+		{
+			strcpy(response, "Sending image...\n");
+			
+		}
 		write(connfd, response, strlen(response));
 		close(connfd);
 		memset(response, 0, strlen(response));
