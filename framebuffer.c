@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <png.h>
+#include <jpeglib.h>
 
 int fb = 0;
 int console;
@@ -32,6 +33,8 @@ pthread_t imageThread;
 time_t start;
 time_t end;
 float deltaTime = 0;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int openFrameBuffer()
 {
@@ -130,6 +133,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 	yPos *= yScale;
 	printf("Drawing pixel at: (%d, %d). RGB = (%d, %d, %d)\n", xPos, yPos, r, g, b);
 	writing = true;
+	pthread_mutex_lock(&mutex);
 	for (int i = 0; i < xScale; i++)
 	{
 		for (int j = 0; j < yScale; j++)
@@ -143,6 +147,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 		}
 	}
 	writing = false;
+	pthread_mutex_unlock(&mutex);
 	return 1;
 }
 
@@ -174,7 +179,7 @@ int loadFrameBuffer()
 {
 	printf("Starting framebuffer...\n");
 	//Redirect printf to log.txt - Overwrites last log file
-	//freopen("log.txt", "w", stdout);
+//	freopen("log.err", "w", stderr);
 	loadKeyBoard();
 	// Open the file for reading and writing
 	if(openFrameBuffer() != 1)
@@ -222,7 +227,7 @@ void* writeImage(void* args)
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 0.15 && writing == false)
+		if (deltaTime >= 60 * 0.25)
 		{
 			deltaTime = 0;
 			output = fopen("state.ppm", "wb+");
@@ -235,6 +240,7 @@ void* writeImage(void* args)
 			fprintf(output, "P3\n%d %d\n255\n", (int)vinfo.xres, (int)vinfo.yres);
 
 			struct pixelData data;
+			pthread_mutex_lock(&mutex);
 			for (double i = 0; i < vinfo.yres; i++)
 			{
 				for (double j = 0; j < vinfo.xres; j++)
@@ -252,11 +258,12 @@ void* writeImage(void* args)
 					else
 						fprintf(output, " %d %d %d", data.r, data.g, data.b);
 
-		//			printf("Pixel Data at: (%d, %d) = (%d,%d,%d)\n", j, i, data.r, data.g, data.b);
+					//			printf("Pixel Data at: (%d, %d) = (%d,%d,%d)\n", j, i, data.r, data.g, data.b);
 				}
 				//printf("Finished writing row: %d\n", i);
 				fprintf(output, "\n");
 			}
+			pthread_mutex_unlock(&mutex);
 			printf("Finished writing to file\n");
 		}
 	}
@@ -269,12 +276,13 @@ void* writePngImage(void* args)
 	while(true)
 	{
 		start = time(NULL);
-		sleep(30);
+		sleep(5);
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 1 && writing == false)
+		if (deltaTime >= 60 * 0.5 && writing == false)
 		{
+			printf("Starting PNG Write\n");
 			deltaTime = 0;
 			output = fopen("state.png", "wb+");
 			if (output == NULL)
@@ -284,15 +292,115 @@ void* writePngImage(void* args)
 			}
 			png_structp png = NULL;
 			png_infop info = NULL;
-			png_bytep row = NULL;
+			png_byte* rowPointers = NULL;
 
+			png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+			if (png == NULL)
+			{
+				printf("Error: Could not allocate Png struct\n");
+				return -1;
+			}
 
+			info = png_create_info_struct(png);
+
+			if (info == NULL)
+			{
+				printf("Error: Could not allocate info struct\n");
+				return -1;
+			}
+			png_set_IHDR(png, info, vinfo.xres, vinfo.yres, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+			png_init_io(png, output);
+			png_write_info(png, info);
+			png_bytep row;
+			row = (png_bytep) malloc(sizeof(png_byte) * vinfo.xres * 3);
+			for (int y = 0; y < vinfo.yres; y++)
+			{
+				for (int x = 0; x < vinfo.xres; x++)
+				{
+					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
+					row[x * 3] = *(frameBuffer + location + 2);
+					row[x * 3 + 1] = *(frameBuffer + location + 1);
+					row[x * 3 + 2] = *(frameBuffer + location);
+				}
+				png_write_row(png, row);
+			}
+			// png_set_rows(png, info, rowPointers);
+			// png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
+			png_write_end(png, info);
+			printf("Finished Writing!\n");
+		}
+	}
+}
+
+void* writeJpgImage(void* args)
+{
+
+	while(true)
+	{
+		start = time(NULL);
+		sleep(5);
+		end = time(NULL);
+		deltaTime += end - start;
+
+		if (deltaTime >= 60 * 0.5 && writing == false)
+		{
+			printf("Starting JPEG Write\n");
+			deltaTime = 0;
+			output = fopen("state.jpg", "wb+");
+			if (output == NULL)
+			{
+				printf("Error opening image file!\n");
+				return -1;
+			}
+
+			struct jpeg_compress_struct cinfo;
+			struct jpeg_error_mgr error;
+			JSAMPROW rowPointer[1];
+			int rowStride;
+
+			cinfo.err = jpeg_std_error(&error);
+			jpeg_create_compress(&cinfo);
+			jpeg_stdio_dest(&cinfo, output);
+
+			cinfo.image_width = vinfo.xres;
+			cinfo.image_height = vinfo.yres;
+			cinfo.input_components = 3;
+			cinfo.in_color_space = JCS_RGB;
+
+			jpeg_set_defaults(&cinfo);
+			jpeg_set_quality(&cinfo, 100, TRUE);
+
+			jpeg_start_compress(&cinfo, TRUE);
+			rowStride = cinfo.image_width * 3;
+
+			unsigned char imageBuffer[vinfo.xres * 3];
+
+			pthread_mutex_lock(&mutex);
+			for (int y = 0; y < vinfo.yres; y++)
+			{
+
+				for (int x = 0; x < vinfo.xres; x++)
+				{
+					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
+					imageBuffer[x * 3] = *(frameBuffer + location + 2);
+					imageBuffer[x * 3 + 1] = *(frameBuffer + location + 1);
+					imageBuffer[x * 3 + 2] = *(frameBuffer + location);
+				}
+				rowPointer[0] = imageBuffer;
+				jpeg_write_scanlines(&cinfo, rowPointer, 1);
+			}
+			pthread_mutex_unlock(&mutex);
+			jpeg_finish_compress(&cinfo);
+			jpeg_destroy_compress(&cinfo);
+			printf("Finished Writing!\n");
 		}
 	}
 }
 
 int saveState()
 {
-	return (pthread_create(&imageThread, NULL, writeImage, NULL));
+	printf("Creating mutex lock = %d\n", pthread_mutex_init(&mutex, NULL));
+	return (pthread_create(&imageThread, NULL, writeJpgImage, NULL));
 }
 
