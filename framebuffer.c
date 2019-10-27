@@ -39,8 +39,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 /**
  * Opens framebuffer into fb.
  * Retrieves information like the resolution and bits per pixel of the framebuffer.
- * RETURN: 1 -> The framebuffer has loaded successfully.
- * RETURN: -1 -> There was an error loading the framebuffer. 
+ * @return: 1 if successful, -1 if unsuccessful
 */
 
 int openFrameBuffer()
@@ -71,8 +70,7 @@ int openFrameBuffer()
 
 /**
  * Opens the current console into console.
- * RETURN: 1 -> The console has loaded successfully.
- * RETURN: -1 -> There was an error loading the console. 
+ * @return: 1 if successful, -1 if unsuccessful
 */
 
 int loadConsole()
@@ -90,8 +88,7 @@ int loadConsole()
  * Enables Console Graphics.
  * Uses an ioctl call to stop the console from overwriting the framebuffer's graphics.
  * Essentially allows us to draw to the framebuffer and not worry about stddout overwriting our graphics.
- * RETURN: 1 -> The console's graphics were loaded successfully.
- * RETURN: -1 -> There was an error loading graphics. 
+ * @return: 1 if successful, -1 if unsuccessful
 */
 
 int enableConsoleGraphics()
@@ -108,8 +105,7 @@ int enableConsoleGraphics()
 * Disables Console Graphics.
 * Uses an ioctl call to set the console to text mode.
 * Essentially allows us to turn off the framebuffer graphics to use the OS.
-* RETURN: 1 -> The text mode was loaded successfully.
-* RETURN: -1 -> There was an error loading text mode. 
+* @return: 1 if successful, -1 if unsuccessful
 */
 
 int disableConsoleGraphics()
@@ -122,15 +118,32 @@ int disableConsoleGraphics()
 	return 1;
 }
 
+/**
+* WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+* Loads the keyboard so we can interact with the framebuffer program.
+*/
+
 void loadKeyBoard()
 {
 	keyboard = open("/dev/input/event2", O_RDONLY);
 }
 
+/**
+* WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+* Closes the keyboard
+*/
+
 void closeKeyBoard()
 {
 	close(keyboard);
 }
+
+/**
+* Sets a scale for ACM Pixel.
+* @param xRes: The target x resolution after the scale is applied.
+* @param yRes: The target y resolution after the scale is applied.
+* @return: 1 if successful, -1 if unsuccessful
+*/
 
 int loadScale(double xRes, double yRes)
 {
@@ -150,6 +163,17 @@ int loadScale(double xRes, double yRes)
 	}
 	return 1;
 }
+
+/**
+* Draws a scaled pixel in the framebuffer.
+* @param xPos: The x position of the draw request (x is between 0 and targetXRes).
+* @param yPos: The y position of the draw request (x is between 0 and targetYRes).
+* @param r: The Red component of the draw request.
+* @param g: The Green component of the draw request.
+* @param b: The Blue component of the draw request.
+* @param a: The Alpha component of the draw request. WARNING: Hardcoded to 0.
+* @return: 1 if successful, -1 if unsuccessful
+*/
 
 int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 {
@@ -181,6 +205,12 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 	return 1;
 }
 
+/**
+* WARNING: DEPRECATED FUNCTION!
+* Retrieves the pixel data.
+* @param data: The pixelData struct to populate with data.
+*/
+
 void getPixelData(struct pixelData * data)
 {
 
@@ -190,7 +220,15 @@ void getPixelData(struct pixelData * data)
 	data->r = *(frameBuffer + location + 2);
 }
 
-int clearScreen(unsigned char r, unsigned char g, unsigned char b)
+/**
+* Clears the framebuffer to some specified color.
+* @param r: The Red component of the color.
+* @param g: The Green component of the color.
+* @param b: The Blue component of the color.
+* @param a: The Alpha component of the color. WARNING: Hardcoded to 0.
+*/
+
+void clearScreen(unsigned char r, unsigned char g, unsigned char b)
 {
 	printf("Starting to clear screen...\n");
 	for (y = 0; y < targetYRes; y++)
@@ -201,7 +239,6 @@ int clearScreen(unsigned char r, unsigned char g, unsigned char b)
 		}
 	}
 	printf("Cleared Screen\n");
-
 }
 
 
