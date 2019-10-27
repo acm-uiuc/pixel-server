@@ -316,7 +316,7 @@ void* writeImage(void* args)
 			if (output == NULL)
 			{
 				printf("Error opening image file!\n");
-				return -1;
+				return NULL;
 			}
 			printf("Writing PPM Header\n");
 			fprintf(output, "P3\n%d %d\n255\n", (int)vinfo.xres, (int)vinfo.yres);
@@ -376,7 +376,7 @@ void* writePngImage(void* args)
 			if (output == NULL)
 			{
 				printf("Error opening image file!\n");
-				return -1;
+				return NULL;
 			}
 			png_structp png = NULL;
 			png_infop info = NULL;
@@ -386,7 +386,7 @@ void* writePngImage(void* args)
 			if (png == NULL)
 			{
 				printf("Error: Could not allocate Png struct\n");
-				return -1;
+				return NULL;
 			}
 
 			info = png_create_info_struct(png);
@@ -394,7 +394,7 @@ void* writePngImage(void* args)
 			if (info == NULL)
 			{
 				printf("Error: Could not allocate info struct\n");
-				return -1;
+				return NULL;
 			}
 			png_set_IHDR(png, info, vinfo.xres, vinfo.yres, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
@@ -402,9 +402,9 @@ void* writePngImage(void* args)
 			png_write_info(png, info);
 			png_bytep row;
 			row = (png_bytep) malloc(sizeof(png_byte) * vinfo.xres * 3);
-			for (int y = 0; y < vinfo.yres; y++)
+			for (unsigned int y = 0; y < vinfo.yres; y++)
 			{
-				for (int x = 0; x < vinfo.xres; x++)
+				for (unsigned int x = 0; x < vinfo.xres; x++)
 				{
 					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
 					row[x * 3] = *(frameBuffer + location + 2);
@@ -445,7 +445,7 @@ void* writeJpgImage(void* args)
 			if (output == NULL)
 			{
 				printf("Error opening image file!\n");
-				return -1;
+				return NULL;
 			}
 
 			struct jpeg_compress_struct cinfo;
@@ -471,10 +471,10 @@ void* writeJpgImage(void* args)
 			unsigned char imageBuffer[vinfo.xres * 3];
 
 			pthread_mutex_lock(&mutex);
-			for (int y = 0; y < vinfo.yres; y++)
+			for (unsigned int y = 0; y < vinfo.yres; y++)
 			{
 
-				for (int x = 0; x < vinfo.xres; x++)
+				for (unsigned int x = 0; x < vinfo.xres; x++)
 				{
 					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
 					imageBuffer[x * 3] = *(frameBuffer + location + 2);
