@@ -45,14 +45,15 @@ int bindSocket()
 char processRequest(unsigned char buffer[]) 
 {
 	printf("Processing Request\n");
-	/*	
-	char *header = (char *) malloc(4);
+	/*
+	unsigned char *header = malloc((unsigned char *) 4);
+	//TODO: Fix request identification
 	
 	strncpy(header, buffer, 4);
-	if (strcmp(header, "GET") != 0)
+	if (strcmp(header, "POST") != 0)
 	{
-		printf("Fetching cached image.\n");
-		return 1;
+		printf("ERROR: This server only processes POST requests\n");
+		return -1;
 	}
 	
 	free(header);
@@ -74,7 +75,9 @@ char processRequest(unsigned char buffer[])
 		return -27;
 	}
 	if (strncmp(request, "get=state", 9) == 0)
+	{
 		return 1;
+	}
 	unsigned char *params[10];
 	unsigned char *paramToken = strtok(request, "&");
 	int paramCount = 0;
@@ -174,6 +177,34 @@ char processRequest(unsigned char buffer[])
 	return -1;
 }
 
+int sendImage(int* client)
+{
+	FILE* output;
+	int size;
+	output = fopen("state.jpg", "rb");
+	if (output == NULL)
+	{
+		printf("Error reading from image file!\n");
+		return -1;
+	}
+	char imageBuffer[1024];
+	fseek(output, 0, SEEK_END);
+	size = ftell(output);
+	fseek(output, 0, SEEK_SET);
+
+	while (!feof(output))
+	{
+		fread(&imageBuffer, sizeof(imageBuffer), 1, output);
+		write(*client, &imageBuffer, sizeof(imageBuffer));
+	}
+	if (fclose(output) != 0)
+	{
+		printf("Error closing image file!\n");
+		return -1;
+	}
+	return 0;
+}
+
 int main()
 {
 	int openResult = openSocket();
@@ -189,6 +220,7 @@ int main()
 	loadScale(128, 128);
 	clearScreen(255, 0, 0);
 	saveState();
+
 	if ((listen(listenfd, 10)) < 0)
 	{
 		printf("ERROR: Failed to listen for connections\n");
@@ -236,8 +268,9 @@ int main()
 			strcpy(response, "Some values were out of bounds\n");
 		if (result == 1)
 		{
+			printf("Recieved Send image signal\n");
 			strcpy(response, "Sending image...\n");
-			
+			printf("Send output: %d\n", sendImage(&connfd));
 		}
 		write(connfd, response, strlen(response));
 		close(connfd);
