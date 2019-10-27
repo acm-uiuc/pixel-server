@@ -1,6 +1,7 @@
 #ifndef STRUCTS_H
 #define STRUCTS_H
-
+#include <stdbool.h>
+bool writing;
 struct pixelData
 {
 	int x;
