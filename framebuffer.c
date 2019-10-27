@@ -36,8 +36,16 @@ float deltaTime = 0;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/**
+ * Opens framebuffer into fb.
+ * Retrieves information like the resolution and bits per pixel of the framebuffer.
+ * RETURN: 1 -> The framebuffer has loaded successfully.
+ * RETURN: -1 -> There was an error loading the framebuffer. 
+*/
+
 int openFrameBuffer()
 {
+	// Open framebuffer.
 	fb = open("/dev/fb0", O_RDWR);
 	if (fb == -1) 
 	{
@@ -61,26 +69,48 @@ int openFrameBuffer()
 	return 1;
 }
 
+/**
+ * Opens the current console into console.
+ * RETURN: 1 -> The console has loaded successfully.
+ * RETURN: -1 -> There was an error loading the console. 
+*/
+
 int loadConsole()
 {
 	console = open("/dev/tty0", O_RDWR);
 	if (console == -1) 
 	{
-		printf("Error: cannot open framebuffer device\n");
+		printf("Error: cannot open console device\n");
 		return -1;
 	}
 	return 1;
 }
 
+/**
+ * Enables Console Graphics.
+ * Uses an ioctl call to stop the console from overwriting the framebuffer's graphics.
+ * Essentially allows us to draw to the framebuffer and not worry about stddout overwriting our graphics.
+ * RETURN: 1 -> The console's graphics were loaded successfully.
+ * RETURN: -1 -> There was an error loading graphics. 
+*/
+
 int enableConsoleGraphics()
 {
 	if (ioctl(console, KDSETMODE, KD_GRAPHICS) == -1)
 	{
-		printf("Error setting console\n");
+		printf("Error loading console graphics!\n");
 		return -1;
 	}
 	return 1;
 }
+
+/**
+* Disables Console Graphics.
+* Uses an ioctl call to set the console to text mode.
+* Essentially allows us to turn off the framebuffer graphics to use the OS.
+* RETURN: 1 -> The text mode was loaded successfully.
+* RETURN: -1 -> There was an error loading text mode. 
+*/
 
 int disableConsoleGraphics()
 {
