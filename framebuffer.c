@@ -40,7 +40,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  * Opens framebuffer into fb.
  * Retrieves information like the resolution and bits per pixel of the framebuffer.
  * @return: 1 if successful, -1 if unsuccessful
-*/
+ */
 
 int openFrameBuffer()
 {
@@ -71,7 +71,7 @@ int openFrameBuffer()
 /**
  * Opens the current console into console.
  * @return: 1 if successful, -1 if unsuccessful
-*/
+ */
 
 int loadConsole()
 {
@@ -89,7 +89,7 @@ int loadConsole()
  * Uses an ioctl call to stop the console from overwriting the framebuffer's graphics.
  * Essentially allows us to draw to the framebuffer and not worry about stddout overwriting our graphics.
  * @return: 1 if successful, -1 if unsuccessful
-*/
+ */
 
 int enableConsoleGraphics()
 {
@@ -102,11 +102,11 @@ int enableConsoleGraphics()
 }
 
 /**
-* Disables Console Graphics.
-* Uses an ioctl call to set the console to text mode.
-* Essentially allows us to turn off the framebuffer graphics to use the OS.
-* @return: 1 if successful, -1 if unsuccessful
-*/
+ * Disables Console Graphics.
+ * Uses an ioctl call to set the console to text mode.
+ * Essentially allows us to turn off the framebuffer graphics to use the OS.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
 
 int disableConsoleGraphics()
 {
@@ -119,9 +119,9 @@ int disableConsoleGraphics()
 }
 
 /**
-* WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
-* Loads the keyboard so we can interact with the framebuffer program.
-*/
+ * WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+ * Loads the keyboard so we can interact with the framebuffer program.
+ */
 
 void loadKeyBoard()
 {
@@ -129,9 +129,9 @@ void loadKeyBoard()
 }
 
 /**
-* WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
-* Closes the keyboard
-*/
+ * WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+ * Closes the keyboard
+ */
 
 void closeKeyBoard()
 {
@@ -139,11 +139,11 @@ void closeKeyBoard()
 }
 
 /**
-* Sets a scale for ACM Pixel.
-* @param xRes: The target x resolution after the scale is applied.
-* @param yRes: The target y resolution after the scale is applied.
-* @return: 1 if successful, -1 if unsuccessful
-*/
+ * Sets a scale for ACM Pixel.
+ * @param xRes: The target x resolution after the scale is applied.
+ * @param yRes: The target y resolution after the scale is applied.
+ * @return: 1 if successful, -1 if unsuccessful. 
+ */
 
 int loadScale(double xRes, double yRes)
 {
@@ -165,15 +165,15 @@ int loadScale(double xRes, double yRes)
 }
 
 /**
-* Draws a scaled pixel in the framebuffer.
-* @param xPos: The x position of the draw request (x is between 0 and targetXRes).
-* @param yPos: The y position of the draw request (x is between 0 and targetYRes).
-* @param r: The Red component of the draw request.
-* @param g: The Green component of the draw request.
-* @param b: The Blue component of the draw request.
-* @param a: The Alpha component of the draw request. WARNING: Hardcoded to 0.
-* @return: 1 if successful, -1 if unsuccessful
-*/
+ * Draws a scaled pixel in the framebuffer.
+ * @param xPos: The x position of the draw request (x is between 0 and targetXRes).
+ * @param yPos: The y position of the draw request (x is between 0 and targetYRes).
+ * @param r: The Red component of the draw request.
+ * @param g: The Green component of the draw request.
+ * @param b: The Blue component of the draw request.
+ * @param a: The Alpha component of the draw request. WARNING: Hardcoded to 0.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
 
 int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 {
@@ -193,6 +193,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 		for (int j = 0; j < yScale; j++)
 		{
 			location = (xPos + vinfo.xoffset + i) * (vinfo.bits_per_pixel/8) + (yPos + vinfo.yoffset + j) * finfo.line_length;
+			//WARNING: The framebuffer uses BGRA format!
 			*(frameBuffer + location) = b;
 			*(frameBuffer + location + 1) = g;
 			*(frameBuffer + location + 2) = r;
@@ -206,10 +207,10 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 }
 
 /**
-* WARNING: DEPRECATED FUNCTION!
-* Retrieves the pixel data.
-* @param data: The pixelData struct to populate with data.
-*/
+ * WARNING: DEPRECATED FUNCTION!
+ * Retrieves the pixel data.
+ * @param data: The pixelData struct to populate with data.
+ */
 
 void getPixelData(struct pixelData * data)
 {
@@ -221,12 +222,12 @@ void getPixelData(struct pixelData * data)
 }
 
 /**
-* Clears the framebuffer to some specified color.
-* @param r: The Red component of the color.
-* @param g: The Green component of the color.
-* @param b: The Blue component of the color.
-* @param a: The Alpha component of the color. WARNING: Hardcoded to 0.
-*/
+ * Clears the framebuffer to some specified color.
+ * @param r: The Red component of the color.
+ * @param g: The Green component of the color.
+ * @param b: The Blue component of the color.
+ * @param a: The Alpha component of the color. WARNING: Hardcoded to 0.
+ */
 
 void clearScreen(unsigned char r, unsigned char g, unsigned char b)
 {
@@ -241,6 +242,9 @@ void clearScreen(unsigned char r, unsigned char g, unsigned char b)
 	printf("Cleared Screen\n");
 }
 
+/**
+ * Loads framebuffer by leveraging the functions above. 
+ */
 
 int loadFrameBuffer()
 {
@@ -272,6 +276,11 @@ int loadFrameBuffer()
 	printf("The framebuffer device was mapped to memory successfully.\n");
 }
 
+/**
+ * Closes framebuffer by leveraging the functions above. 
+ * @return: 1 on success.
+ */
+
 int closeFrameBuffer()
 {
 	munmap(frameBuffer, screensize);
@@ -283,6 +292,12 @@ int closeFrameBuffer()
 		printf("Error closing image file!\n");
 	return 1;
 }
+
+/**
+ * Saves the current framebuffer state as a PPM file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
 
 void* writeImage(void* args)
 {
@@ -336,6 +351,12 @@ void* writeImage(void* args)
 	}
 }
 
+/**
+ * WARNING: This function is broken as it does not generate the PNG properly.
+ * Saves the current framebuffer state as a PNG file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
 
 void* writePngImage(void* args)
 {
@@ -399,6 +420,12 @@ void* writePngImage(void* args)
 		}
 	}
 }
+
+/**
+ * Saves the current framebuffer state as a JPEG file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
 
 void* writeJpgImage(void* args)
 {
@@ -464,6 +491,11 @@ void* writeJpgImage(void* args)
 		}
 	}
 }
+
+/**
+ * Starts the thread that saves the framebuffer state.
+ * @return: 1 on success.
+ */
 
 int saveState()
 {
