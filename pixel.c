@@ -165,7 +165,7 @@ char processRequest(unsigned char buffer[])
 	}
 
 	if (x && y && r && g && b) {
-		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.x < targetXRes && pxl.y < targetYRes) {
+		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.r >= 0 && pxl.g >= 0 && pxl.b >= 0 && pxl.r <256 && pxl.g < 256 && pxl.b <256 && pxl.x < targetXRes && pxl.y < targetYRes) {
 			drawPixel(pxl.x, pxl.y, pxl.r, pxl.g, pxl.b, 0);
 			drawCount++;
 			return 0;
@@ -256,16 +256,16 @@ int main()
 		if (result == -27)
 			break;
 		if (result == 0)
-			strcpy(response, "The server recieved your request!\n");
+			strcpy(response, "HTTP/1.1 200 OK\r\n\r\n<!DOCTYPE HTML> <html><body><p>Your request has been recieved!</p></body></html>");
 		
 		if (result == -1)
-			strcpy(response, "Not enough information was recieved in order to draw a pixel\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST \r\n\r\n <!DOCTYPE HTML><html><body><p>Not enough information was recieved in order to draw a pixel</p></body></html>");
 
 		if (result == -2)
-			strcpy(response, "Some fields were sent multiple times, so your request wasn't processed\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST \r\n\r\n <!DOCTYPE HTML><html><body><p>Some information was sent more than once, so your information could not be processed</p></body></html>");
 
 		if (result == -3)
-			strcpy(response, "Some values were out of bounds\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST \r\n\r\n <!DOCTYPE HTML><html><body><p>Some values were out of bounds, so your request could not be processed</p></body></html>");
 		if (result == 1)
 		{
 			printf("Recieved Send image signal\n");
