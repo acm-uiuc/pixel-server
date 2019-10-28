@@ -8,17 +8,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
-
-struct pixelData
-{
-	int x, y, r, g, b;
-};
-
-struct postData
-{
-	char name;
-	int value;
-};
+#include "structs.h"
 
 int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
@@ -84,6 +74,10 @@ char processRequest(unsigned char buffer[])
 	{
 		return -27;
 	}
+	if (strncmp(request, "get=state", 9) == 0)
+	{
+		return 1;
+	}
 	unsigned char *params[10];
 	unsigned char *paramToken = strtok(request, "&");
 	int paramCount = 0;
@@ -95,7 +89,7 @@ char processRequest(unsigned char buffer[])
 	}
 
 	struct postData parsedParameters[paramCount];
-	struct pixelData pxl;
+	struct pixelData pxl = {.x = 0, .y= 0, .r=0, .g = 0, .b = 0};
 	int equalityIndex = 0;
 	int tempValue = 0;
 	for (int i = 0; i < paramCount; i++)
@@ -103,7 +97,7 @@ char processRequest(unsigned char buffer[])
 		if (params[i] == NULL)
 			break;
 		//process each value
-		int j = 0;
+		unsigned char j = 0;
 		printf("Parsing %s, with length = %d\n", params[i], strlen(params[i]));
 		for (j = 0; j < strlen(params[i]); j++)	
 		{
@@ -171,8 +165,8 @@ char processRequest(unsigned char buffer[])
 	}
 
 	if (x && y && r && g && b) {
-		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.r >= 0 && pxl.g >= 0 && pxl.b >= 0 && pxl.x < targetXRes && pxl.y < targetYRes && pxl.r < 256 && pxl.g < 256 && pxl.b < 256) {
-			drawPixel(pxl.x,pxl.y,pxl.r,pxl.g,pxl.b,0);
+		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.x < targetXRes && pxl.y < targetYRes) {
+			drawPixel(pxl.x, pxl.y, pxl.r, pxl.g, pxl.b, 0);
 			drawCount++;
 			return 0;
 		} else {
@@ -181,6 +175,34 @@ char processRequest(unsigned char buffer[])
 	}
 
 	return -1;
+}
+
+int sendImage(int* client)
+{
+	FILE* output;
+	int size;
+	output = fopen("state.jpg", "rb");
+	if (output == NULL)
+	{
+		printf("Error reading from image file!\n");
+		return -1;
+	}
+	char imageBuffer[1024];
+	fseek(output, 0, SEEK_END);
+	size = ftell(output);
+	fseek(output, 0, SEEK_SET);
+
+	while (!feof(output))
+	{
+		fread(&imageBuffer, sizeof(imageBuffer), 1, output);
+		write(*client, &imageBuffer, sizeof(imageBuffer));
+	}
+	if (fclose(output) != 0)
+	{
+		printf("Error closing image file!\n");
+		return -1;
+	}
+	return 0;
 }
 
 int main()
@@ -198,6 +220,7 @@ int main()
 	loadScale(128, 128);
 	clearScreen(255, 0, 0);
 	saveState();
+
 	if ((listen(listenfd, 10)) < 0)
 	{
 		printf("ERROR: Failed to listen for connections\n");
@@ -243,7 +266,12 @@ int main()
 
 		if (result == -3)
 			strcpy(response, "Some values were out of bounds\n");
-
+		if (result == 1)
+		{
+			printf("Recieved Send image signal\n");
+			strcpy(response, "Sending image...\n");
+			printf("Send output: %d\n", sendImage(&connfd));
+		}
 		write(connfd, response, strlen(response));
 		close(connfd);
 		memset(response, 0, strlen(response));

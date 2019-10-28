@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS= -pthread -Wextra -O2
-
+CFLAGS= -Wextra -O2
+LFLAGS = -pthread -lpng -ljpeg
 build:
-	$(CC) $(CFLAGS) -pthread -o pixel pixel.c framebuffer.c
+	$(CC) $(CFLAGS) -o pixel pixel.c framebuffer.c $(LFLAGS)
 

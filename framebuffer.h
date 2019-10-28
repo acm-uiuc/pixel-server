@@ -18,7 +18,7 @@ void closeKeyBoard();
 int loadScale(double xRes, double yRes);
 int drawPixel(int xPos, int yPos, int r, int g, int b, int a);
 int loadFrameBuffer();
-int clearScreen(unsigned char r, unsigned char g, unsigned char b);
+void clearScreen(unsigned char r, unsigned char g, unsigned char b);
 int closeFrameBuffer();
 int saveState();
 #endif

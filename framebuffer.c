@@ -1,4 +1,4 @@
-//#include "structs.h"
+#include "structs.h"
 #include "framebuffer.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -12,10 +12,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <png.h>
-
-struct pixelData {
-	int x,y,r,g,b;
-};
+#include <jpeglib.h>
 
 int fb = 0;
 int console;
@@ -37,8 +34,17 @@ time_t start;
 time_t end;
 float deltaTime = 0;
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/**
+ * Opens framebuffer into fb.
+ * Retrieves information like the resolution and bits per pixel of the framebuffer.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
+
 int openFrameBuffer()
 {
+	// Open framebuffer.
 	fb = open("/dev/fb0", O_RDWR);
 	if (fb == -1) 
 	{
@@ -62,26 +68,45 @@ int openFrameBuffer()
 	return 1;
 }
 
+/**
+ * Opens the current console into console.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
+
 int loadConsole()
 {
 	console = open("/dev/tty0", O_RDWR);
 	if (console == -1) 
 	{
-		printf("Error: cannot open framebuffer device\n");
+		printf("Error: cannot open console device\n");
 		return -1;
 	}
 	return 1;
 }
 
+/**
+ * Enables Console Graphics.
+ * Uses an ioctl call to stop the console from overwriting the framebuffer's graphics.
+ * Essentially allows us to draw to the framebuffer and not worry about stddout overwriting our graphics.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
+
 int enableConsoleGraphics()
 {
 	if (ioctl(console, KDSETMODE, KD_GRAPHICS) == -1)
 	{
-		printf("Error setting console\n");
+		printf("Error loading console graphics!\n");
 		return -1;
 	}
 	return 1;
 }
+
+/**
+ * Disables Console Graphics.
+ * Uses an ioctl call to set the console to text mode.
+ * Essentially allows us to turn off the framebuffer graphics to use the OS.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
 
 int disableConsoleGraphics()
 {
@@ -93,15 +118,32 @@ int disableConsoleGraphics()
 	return 1;
 }
 
+/**
+ * WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+ * Loads the keyboard so we can interact with the framebuffer program.
+ */
+
 void loadKeyBoard()
 {
 	keyboard = open("/dev/input/event2", O_RDONLY);
 }
 
+/**
+ * WARNING: DEPRECATED FUNCTION! There is no need to interact with ACM Pixel using a keyboard!
+ * Closes the keyboard
+ */
+
 void closeKeyBoard()
 {
 	close(keyboard);
 }
+
+/**
+ * Sets a scale for ACM Pixel.
+ * @param xRes: The target x resolution after the scale is applied.
+ * @param yRes: The target y resolution after the scale is applied.
+ * @return: 1 if successful, -1 if unsuccessful. 
+ */
 
 int loadScale(double xRes, double yRes)
 {
@@ -122,6 +164,17 @@ int loadScale(double xRes, double yRes)
 	return 1;
 }
 
+/**
+ * Draws a scaled pixel in the framebuffer.
+ * @param xPos: The x position of the draw request (x is between 0 and targetXRes).
+ * @param yPos: The y position of the draw request (x is between 0 and targetYRes).
+ * @param r: The Red component of the draw request.
+ * @param g: The Green component of the draw request.
+ * @param b: The Blue component of the draw request.
+ * @param a: The Alpha component of the draw request. WARNING: Hardcoded to 0.
+ * @return: 1 if successful, -1 if unsuccessful
+ */
+
 int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 {
 	printf("Draw Request: (%d, %d) -> ", xPos, yPos);
@@ -134,11 +187,13 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 	yPos *= yScale;
 	printf("Drawing pixel at: (%d, %d). RGB = (%d, %d, %d)\n", xPos, yPos, r, g, b);
 	writing = true;
+	pthread_mutex_lock(&mutex);
 	for (int i = 0; i < xScale; i++)
 	{
 		for (int j = 0; j < yScale; j++)
 		{
 			location = (xPos + vinfo.xoffset + i) * (vinfo.bits_per_pixel/8) + (yPos + vinfo.yoffset + j) * finfo.line_length;
+			//WARNING: The framebuffer uses BGRA format!
 			*(frameBuffer + location) = b;
 			*(frameBuffer + location + 1) = g;
 			*(frameBuffer + location + 2) = r;
@@ -147,8 +202,15 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 		}
 	}
 	writing = false;
+	pthread_mutex_unlock(&mutex);
 	return 1;
 }
+
+/**
+ * WARNING: DEPRECATED FUNCTION!
+ * Retrieves the pixel data.
+ * @param data: The pixelData struct to populate with data.
+ */
 
 void getPixelData(struct pixelData * data)
 {
@@ -159,7 +221,15 @@ void getPixelData(struct pixelData * data)
 	data->r = *(frameBuffer + location + 2);
 }
 
-int clearScreen(unsigned char r, unsigned char g, unsigned char b)
+/**
+ * Clears the framebuffer to some specified color.
+ * @param r: The Red component of the color.
+ * @param g: The Green component of the color.
+ * @param b: The Blue component of the color.
+ * @param a: The Alpha component of the color. WARNING: Hardcoded to 0.
+ */
+
+void clearScreen(unsigned char r, unsigned char g, unsigned char b)
 {
 	printf("Starting to clear screen...\n");
 	for (y = 0; y < targetYRes; y++)
@@ -170,15 +240,17 @@ int clearScreen(unsigned char r, unsigned char g, unsigned char b)
 		}
 	}
 	printf("Cleared Screen\n");
-
 }
 
+/**
+ * Loads framebuffer by leveraging the functions above. 
+ */
 
 int loadFrameBuffer()
 {
 	printf("Starting framebuffer...\n");
 	//Redirect printf to log.txt - Overwrites last log file
-	//freopen("log.txt", "w", stdout);
+//	freopen("log.err", "w", stderr);
 	loadKeyBoard();
 	// Open the file for reading and writing
 	if(openFrameBuffer() != 1)
@@ -204,6 +276,11 @@ int loadFrameBuffer()
 	printf("The framebuffer device was mapped to memory successfully.\n");
 }
 
+/**
+ * Closes framebuffer by leveraging the functions above. 
+ * @return: 1 on success.
+ */
+
 int closeFrameBuffer()
 {
 	munmap(frameBuffer, screensize);
@@ -216,6 +293,12 @@ int closeFrameBuffer()
 	return 1;
 }
 
+/**
+ * Saves the current framebuffer state as a PPM file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
+
 void* writeImage(void* args)
 {
 
@@ -226,19 +309,20 @@ void* writeImage(void* args)
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 0.15 && writing == false)
+		if (deltaTime >= 60 * 0.25)
 		{
 			deltaTime = 0;
 			output = fopen("state.ppm", "wb+");
 			if (output == NULL)
 			{
 				printf("Error opening image file!\n");
-				return -1;
+				return NULL;
 			}
 			printf("Writing PPM Header\n");
 			fprintf(output, "P3\n%d %d\n255\n", (int)vinfo.xres, (int)vinfo.yres);
 
 			struct pixelData data;
+			pthread_mutex_lock(&mutex);
 			for (double i = 0; i < vinfo.yres; i++)
 			{
 				for (double j = 0; j < vinfo.xres; j++)
@@ -256,16 +340,23 @@ void* writeImage(void* args)
 					else
 						fprintf(output, " %d %d %d", data.r, data.g, data.b);
 
-		//			printf("Pixel Data at: (%d, %d) = (%d,%d,%d)\n", j, i, data.r, data.g, data.b);
+					//			printf("Pixel Data at: (%d, %d) = (%d,%d,%d)\n", j, i, data.r, data.g, data.b);
 				}
 				//printf("Finished writing row: %d\n", i);
 				fprintf(output, "\n");
 			}
+			pthread_mutex_unlock(&mutex);
 			printf("Finished writing to file\n");
 		}
 	}
 }
 
+/**
+ * WARNING: This function is broken as it does not generate the PNG properly.
+ * Saves the current framebuffer state as a PNG file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
 
 void* writePngImage(void* args)
 {
@@ -273,30 +364,142 @@ void* writePngImage(void* args)
 	while(true)
 	{
 		start = time(NULL);
-		sleep(30);
+		sleep(5);
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 1 && writing == false)
+		if (deltaTime >= 60 * 0.5 && writing == false)
 		{
+			printf("Starting PNG Write\n");
 			deltaTime = 0;
 			output = fopen("state.png", "wb+");
 			if (output == NULL)
 			{
 				printf("Error opening image file!\n");
-				return -1;
+				return NULL;
 			}
 			png_structp png = NULL;
 			png_infop info = NULL;
-			png_bytep row = NULL;
+			png_byte* rowPointers = NULL;
 
+			png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+			if (png == NULL)
+			{
+				printf("Error: Could not allocate Png struct\n");
+				return NULL;
+			}
 
+			info = png_create_info_struct(png);
+
+			if (info == NULL)
+			{
+				printf("Error: Could not allocate info struct\n");
+				return NULL;
+			}
+			png_set_IHDR(png, info, vinfo.xres, vinfo.yres, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+			png_init_io(png, output);
+			png_write_info(png, info);
+			png_bytep row;
+			row = (png_bytep) malloc(sizeof(png_byte) * vinfo.xres * 3);
+			for (unsigned int y = 0; y < vinfo.yres; y++)
+			{
+				for (unsigned int x = 0; x < vinfo.xres; x++)
+				{
+					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
+					row[x * 3] = *(frameBuffer + location + 2);
+					row[x * 3 + 1] = *(frameBuffer + location + 1);
+					row[x * 3 + 2] = *(frameBuffer + location);
+				}
+				png_write_row(png, row);
+			}
+			// png_set_rows(png, info, rowPointers);
+			// png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
+			png_write_end(png, info);
+			printf("Finished Writing!\n");
 		}
 	}
 }
 
+/**
+ * Saves the current framebuffer state as a JPEG file.
+ * @param args: Unecesary parameter; only used to satisfy pthreads.
+ * @return: 1 on success.
+ */
+
+void* writeJpgImage(void* args)
+{
+
+	while(true)
+	{
+		start = time(NULL);
+		sleep(5);
+		end = time(NULL);
+		deltaTime += end - start;
+
+		if (deltaTime >= 60 * 0.5 && writing == false)
+		{
+			printf("Starting JPEG Write\n");
+			deltaTime = 0;
+			output = fopen("state.jpg", "wb+");
+			if (output == NULL)
+			{
+				printf("Error opening image file!\n");
+				return NULL;
+			}
+
+			struct jpeg_compress_struct cinfo;
+			struct jpeg_error_mgr error;
+			JSAMPROW rowPointer[1];
+			int rowStride;
+
+			cinfo.err = jpeg_std_error(&error);
+			jpeg_create_compress(&cinfo);
+			jpeg_stdio_dest(&cinfo, output);
+
+			cinfo.image_width = vinfo.xres;
+			cinfo.image_height = vinfo.yres;
+			cinfo.input_components = 3;
+			cinfo.in_color_space = JCS_RGB;
+
+			jpeg_set_defaults(&cinfo);
+			jpeg_set_quality(&cinfo, 100, TRUE);
+
+			jpeg_start_compress(&cinfo, TRUE);
+			rowStride = cinfo.image_width * 3;
+
+			unsigned char imageBuffer[vinfo.xres * 3];
+
+			pthread_mutex_lock(&mutex);
+			for (unsigned int y = 0; y < vinfo.yres; y++)
+			{
+
+				for (unsigned int x = 0; x < vinfo.xres; x++)
+				{
+					location = (x + vinfo.xoffset) * (vinfo.bits_per_pixel/8) + (y + vinfo.yoffset) * finfo.line_length;
+					imageBuffer[x * 3] = *(frameBuffer + location + 2);
+					imageBuffer[x * 3 + 1] = *(frameBuffer + location + 1);
+					imageBuffer[x * 3 + 2] = *(frameBuffer + location);
+				}
+				rowPointer[0] = imageBuffer;
+				jpeg_write_scanlines(&cinfo, rowPointer, 1);
+			}
+			pthread_mutex_unlock(&mutex);
+			jpeg_finish_compress(&cinfo);
+			jpeg_destroy_compress(&cinfo);
+			printf("Finished Writing!\n");
+		}
+	}
+}
+
+/**
+ * Starts the thread that saves the framebuffer state.
+ * @return: 1 on success.
+ */
+
 int saveState()
 {
-	return (pthread_create(&imageThread, NULL, writeImage, NULL));
+	printf("Creating mutex lock = %d\n", pthread_mutex_init(&mutex, NULL));
+	return (pthread_create(&imageThread, NULL, writeJpgImage, NULL));
 }
 
