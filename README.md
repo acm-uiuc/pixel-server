@@ -4,14 +4,14 @@ Backend for ACM Pixel.
 It works by loading the Linux Framebuffer (located in /dev/fb0) into system memory so we can quickly edit the pixels on the screen.
 It uses sockets to listen to incoming requests. 
 
-To POST a Request through termianl do.
+To POST
 
-Curl
-'''
-curl -X POST -d 'x=?&y=?&r=?&g=?&b=?' pixel.acm.illinois.edu
-'''
+Curl:
+```
+curl -X POST -d 'x=?&y=?&r=?&g=?&b=?' pixel.acm.illinois.edu (Or Local IP if running locally)
+```
 
-#Endpoints
+# Endpoints
 
 POST
 Renders a pixel with specified pixel color, at the given x and y coordinates.
