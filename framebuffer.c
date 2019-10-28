@@ -19,6 +19,9 @@ char *fbp = 0;
 int x = 0, y = 0;
 long int location = 0;
 
+/** Loads the Buffer to take in pixel posts
+	@Returns 1 if successful: otherwise failed
+*/
 int loadFrameBuffer()
 {
 	fbfd = open("/dev/fb0", O_RDWR);
@@ -44,6 +47,9 @@ int loadFrameBuffer()
 	return 1;
 }
 
+/** Loads Console by setting up framebuffer device
+	@Returns 1 if successful : Otherwise failed
+*/
 int loadConsole()
 {
 	console = open("/dev/tty0", O_RDWR);
@@ -63,6 +69,8 @@ void enableConsoleGraphics()
 	}
 }
 
+/*Disables x11 to accept framebuffer
+*/
 void disableConsoleGraphics()
 {
 	if(ioctl(console, KDSETMODE, KD_TEXT) == -1)
@@ -71,11 +79,15 @@ void disableConsoleGraphics()
 	}
 }
 
+/** Loads keyboard to accept input and draw
+*/
 void loadKeyBoard()
 {
 	keyboard = open("/dev/input/event2", O_RDONLY);
 }
 
+/** Deallocates memory for accepting keyboard
+*/
 void closeKeyBoard()
 {
 	close(keyboard);
