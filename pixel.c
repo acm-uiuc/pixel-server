@@ -89,7 +89,7 @@ char processRequest(unsigned char buffer[])
 	}
 
 	struct postData parsedParameters[paramCount];
-	struct pixelData pxl;
+	struct pixelData pxl = {.x = 0, .y= 0, .r=0, .g = 0, .b = 0};
 	int equalityIndex = 0;
 	int tempValue = 0;
 	for (int i = 0; i < paramCount; i++)
@@ -97,7 +97,7 @@ char processRequest(unsigned char buffer[])
 		if (params[i] == NULL)
 			break;
 		//process each value
-		int j = 0;
+		unsigned char j = 0;
 		printf("Parsing %s, with length = %d\n", params[i], strlen(params[i]));
 		for (j = 0; j < strlen(params[i]); j++)	
 		{
@@ -165,8 +165,8 @@ char processRequest(unsigned char buffer[])
 	}
 
 	if (x && y && r && g && b) {
-		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.r >= 0 && pxl.g >= 0 && pxl.b >= 0 && pxl.x < targetXRes && pxl.y < targetYRes && pxl.r < 256 && pxl.g < 256 && pxl.b < 256) {
-			drawPixel(pxl.x,pxl.y,pxl.r,pxl.g,pxl.b,0);
+		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.x < targetXRes && pxl.y < targetYRes) {
+			drawPixel(pxl.x, pxl.y, pxl.r, pxl.g, pxl.b, 0);
 			drawCount++;
 			return 0;
 		} else {
