@@ -34,7 +34,7 @@ time_t start;
 time_t end;
 float deltaTime = 0;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t framebufferMutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * Opens framebuffer into fb.
@@ -187,7 +187,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 	yPos *= yScale;
 	printf("Drawing pixel at: (%d, %d). RGB = (%d, %d, %d)\n", xPos, yPos, r, g, b);
 	writing = true;
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&framebufferMutex);
 	for (int i = 0; i < xScale; i++)
 	{
 		for (int j = 0; j < yScale; j++)
@@ -202,7 +202,7 @@ int drawPixel(int xPos, int yPos, int r, int g, int b, int a)
 		}
 	}
 	writing = false;
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&framebufferMutex);
 	return 1;
 }
 
@@ -283,13 +283,20 @@ int loadFrameBuffer()
 
 int closeFrameBuffer()
 {
+	running = false;
+	pthread_join(imageThread, NULL);
 	munmap(frameBuffer, screensize);
+	printf("Finished unmapping framebuffer\n");
 	close(fb);
+	printf("Finished closing fb file\n");
 	closeKeyBoard();
 	disableConsoleGraphics();
+	printf("Finished disabling graphics\n");
 	close(console);
-	if (fclose(output) != 0)
-		printf("Error closing image file!\n");
+	printf("Finished closing console\n");
+	//if (fclose(output) != 0)
+	//	printf("Error closing image file!\n");
+	printf("Final close fb instruction\n");
 	return 1;
 }
 
@@ -322,7 +329,7 @@ void* writeImage(void* args)
 			fprintf(output, "P3\n%d %d\n255\n", (int)vinfo.xres, (int)vinfo.yres);
 
 			struct pixelData data;
-			pthread_mutex_lock(&mutex);
+			pthread_mutex_lock(&framebufferMutex);
 			for (double i = 0; i < vinfo.yres; i++)
 			{
 				for (double j = 0; j < vinfo.xres; j++)
@@ -345,7 +352,7 @@ void* writeImage(void* args)
 				//printf("Finished writing row: %d\n", i);
 				fprintf(output, "\n");
 			}
-			pthread_mutex_unlock(&mutex);
+			pthread_mutex_unlock(&framebufferMutex);
 			printf("Finished writing to file\n");
 		}
 	}
@@ -430,14 +437,14 @@ void* writePngImage(void* args)
 void* writeJpgImage(void* args)
 {
 
-	while(true)
+	while(running)
 	{
 		start = time(NULL);
-		sleep(5);
+		sleep(15);
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 0.5 && writing == false)
+		if (deltaTime >= 60 * 5 && writing == false)
 		{
 			printf("Starting JPEG Write\n");
 			deltaTime = 0;
@@ -470,7 +477,7 @@ void* writeJpgImage(void* args)
 
 			unsigned char imageBuffer[vinfo.xres * 3];
 
-			pthread_mutex_lock(&mutex);
+			pthread_mutex_lock(&framebufferMutex);
 			for (unsigned int y = 0; y < vinfo.yres; y++)
 			{
 
@@ -484,12 +491,18 @@ void* writeJpgImage(void* args)
 				rowPointer[0] = imageBuffer;
 				jpeg_write_scanlines(&cinfo, rowPointer, 1);
 			}
-			pthread_mutex_unlock(&mutex);
+			pthread_mutex_unlock(&framebufferMutex);
 			jpeg_finish_compress(&cinfo);
 			jpeg_destroy_compress(&cinfo);
 			printf("Finished Writing!\n");
+			if (fclose(output) != 0)
+			{
+				printf("Failed to close image\n");
+			}
 		}
 	}
+	printf("Exiting image writing thread\n");
+	pthread_exit(NULL);
 }
 
 /**
@@ -499,7 +512,8 @@ void* writeJpgImage(void* args)
 
 int saveState()
 {
-	printf("Creating mutex lock = %d\n", pthread_mutex_init(&mutex, NULL));
+	running = true;
+	printf("Creating framebuffer mutex lock = %d\n", pthread_mutex_init(&framebufferMutex, NULL));
 	return (pthread_create(&imageThread, NULL, writeJpgImage, NULL));
 }
 

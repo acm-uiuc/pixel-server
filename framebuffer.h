@@ -5,7 +5,7 @@
 struct input_event keyEvent;
 int keyboard;
 
-bool writing;
+volatile bool running;
 
 double targetXRes;
 double targetYRes;
