@@ -15,7 +15,11 @@ int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
 char recvLine[4096 + 1];
 char * response;
-unsigned int drawCount = 0;
+
+/**
+ * Opens the socket for the server to accept incoming requests.
+ * @return: 1 if the socket opened properly, -1 if it failed.
+ */
 
 int openSocket()
 {
@@ -32,6 +36,11 @@ int openSocket()
 	return 0;
 }
 
+/**
+ * Binds the socket that was opened.
+ * @return: 1 if successful, -1 if binding failed.
+ */
+
 int bindSocket()
 {
 	if ((bind(listenfd, (struct sockaddr *) &serverAdress, sizeof(serverAdress))) < 0)
@@ -41,6 +50,16 @@ int bindSocket()
 	}
 	return 0;
 }
+
+/**
+ * Processes the current request given to the server.
+ * @param buffer: The string representation of the request.
+ * @return: 0 if the request was processed successfully.
+ * @return: 1 if the request is trying to fetch the current state of pixel.
+ * @return: -2 if the request has too many parameters.
+ * @return: -3 if the request was empty.
+ * @return: -27 exits the server. WARNING: Deprecated return value in the production build.
+ */
 
 char processRequest(char buffer[]) 
 {
@@ -56,8 +75,8 @@ char processRequest(char buffer[])
 
 	char * request;
 	char query[8];
-	strncpy(query, buffer, 8);
-	if (strncmp(query, "POST /?x", 8) == 0)
+	strncpy(query, buffer, 7);
+	if (strncmp(query, "POST /?", 7) == 0)
 		request = strtok(buffer, "\n");
 	else
 	{
@@ -126,6 +145,11 @@ char processRequest(char buffer[])
 	return 0;
 }
 
+/**
+ * Sends the current state of pixel to the client.
+ * @param client: Pointer to the client file descriptor.
+ * @return: -1 for failure, 0 for success.
+ */
 
 int sendImage(int* client)
 {
@@ -177,11 +201,6 @@ int main()
 	response = (unsigned char*) malloc(256);
 	while (running)
 	{
-		if (drawCount >= 64)
-		{
-			drawCount = 0;
-		}
-
 		struct sockaddr_in client;
 		socklen_t clientLen;
 
@@ -211,7 +230,7 @@ int main()
 		}
 		if (result == 0)
 		{
-			strcpy(response, "HTTP/1.1 200 OK\nContent-Type: image/jpeg\n");
+			strcpy(response, "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 34\n\nThe server recieved your request!\n");
 			write(connfd, response, strlen(response));
 		}
 

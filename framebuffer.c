@@ -444,7 +444,7 @@ void* writeJpgImage(void* args)
 		end = time(NULL);
 		deltaTime += end - start;
 
-		if (deltaTime >= 60 * 5 && writing == false)
+		if (deltaTime >= 60 * 0.5 && writing == false)
 		{
 			printf("Starting JPEG Write\n");
 			deltaTime = 0;
@@ -466,18 +466,19 @@ void* writeJpgImage(void* args)
 
 			cinfo.image_width = vinfo.xres;
 			cinfo.image_height = vinfo.yres;
+			
 			cinfo.input_components = 3;
 			cinfo.in_color_space = JCS_RGB;
 
 			jpeg_set_defaults(&cinfo);
-			jpeg_set_quality(&cinfo, 100, TRUE);
+			jpeg_set_quality(&cinfo, 128, TRUE);
 
 			jpeg_start_compress(&cinfo, TRUE);
 			rowStride = cinfo.image_width * 3;
 
 			unsigned char imageBuffer[vinfo.xres * 3];
-
 			pthread_mutex_lock(&framebufferMutex);
+			
 			for (unsigned int y = 0; y < vinfo.yres; y++)
 			{
 
@@ -491,6 +492,7 @@ void* writeJpgImage(void* args)
 				rowPointer[0] = imageBuffer;
 				jpeg_write_scanlines(&cinfo, rowPointer, 1);
 			}
+			
 			pthread_mutex_unlock(&framebufferMutex);
 			jpeg_finish_compress(&cinfo);
 			jpeg_destroy_compress(&cinfo);
