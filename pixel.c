@@ -61,7 +61,7 @@ int bindSocket()
  * @return: -27 exits the server. WARNING: Deprecated return value in the production build.
  */
 
-char processRequest(char buffer[]) 
+char processRequest(char* buffer) 
 {
 	printf("Processing Request\n");
 
@@ -115,6 +115,9 @@ char processRequest(char buffer[])
 
 	if (paramCount > 5)
 		return -2;
+	
+	if (paramCount < 5)
+		return -3;
 
 	unsigned int data[5];
 	int equalityIndex = 0;
