@@ -57,7 +57,8 @@ int bindSocket()
  * @return: 0 if the request was processed successfully.
  * @return: 1 if the request is trying to fetch the current state of pixel.
  * @return: -2 if the request has too many parameters.
- * @return: -3 if the request was empty.
+ * @return: -3 if the request values were out of bounds.
+ * @return: -4 if the request did not recieve enough information
  * @return: -27 exits the server. WARNING: Deprecated return value in the production build.
  */
 
@@ -76,8 +77,11 @@ char processRequest(char* buffer)
 	char * request;
 	char query[8];
 	strncpy(query, buffer, 7);
-	if (strncmp(query, "POST /?", 7) == 0)
-		request = strtok(buffer, "\n");
+	if (strncmp(query, "POST /?", 7) == 0) {
+		strtok(buffer, "?");
+		buffer = strtok(NULL, "?");
+		request = strtok(buffer, "HTTP");
+	}
 	else
 	{
 		char *array[16];
@@ -94,8 +98,8 @@ char processRequest(char* buffer)
 
 		request = array[index - 1];
 	}
-	if (strncmp(request, " ", 1) == 0)
-		return -3;
+	//if (strncmp(request, " ", 1) == 0)
+	//	return -3;
 	printf("%s\n", request);
 
 	if (strncmp(request, "action=exit", 11) == 0)
@@ -117,9 +121,10 @@ char processRequest(char* buffer)
 		return -2;
 	
 	if (paramCount < 5)
-		return -3;
-
-	unsigned int data[5];
+		return -4;
+	
+        struct postData parsedParameters[paramCount];
+	struct pixelData pxl = {.x = 0, .y= 0, .r=0, .g = 0, .b = 0};
 	int equalityIndex = 0;
 	for (int i = 0; i < paramCount; i++)
 	{
@@ -137,15 +142,71 @@ char processRequest(char* buffer)
 				break;
 			}
 		}
-		data[i] = atoi(&(*(params[i] + equalityIndex)));		
+		(parsedParameters+i)->value = atoi(&(*(params[i] + equalityIndex)));
+		(parsedParameters+i)->name = (char) *(params[i]);
 		equalityIndex = 0;
-		printf("Data at %d = %d\n", i, data[i]);
+		printf("Data at %d = %d\n", i, parsedParameters[i].value);
 	}
 
-	if (data[0] < targetXRes && data[1] < targetYRes)
-		drawPixel(data[0], data[1], data[2], data[3], data[4], 0);
+	bool r = false;
+	bool g = false;
+	bool b = false;
+	bool x = false;
+	bool y = false;
 
-	return 0;
+	for (int i = 0; i < paramCount; i++) {
+		printf("1\n");
+		if (parsedParameters[i].name == "r"[0]) {
+			if (r) {
+				return -2;
+			}
+			pxl.r = parsedParameters[i].value;
+			r = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "g"[0]) {
+			if (g) {
+				return -2;
+			}
+			pxl.g = parsedParameters[i].value;
+			g = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "b"[0]) {
+			if (b) {
+				return -2;
+			}
+			pxl.b = parsedParameters[i].value;
+			b = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "x"[0]) {
+			if (x) {
+				return -2;
+			}
+			pxl.x = parsedParameters[i].value;
+			x = true;
+			printf("2\n");
+		}
+		if (parsedParameters[i].name == "y"[0]) {
+			if (y) {
+				return -2;
+			}
+			pxl.y = parsedParameters[i].value;
+			y = true;
+			printf("2\n");
+		}
+	}
+
+	if (x && y && r && g && b) {
+		if ( pxl.x >= 0 && pxl.y >= 0 && pxl.r >= 0 && pxl.g >= 0 && pxl.b >= 0 && pxl.r <256 && pxl.g < 256 && pxl.b <256 && pxl.x < targetXRes && pxl.y < targetYRes) {
+			drawPixel(pxl.x, pxl.y, pxl.r, pxl.g, pxl.b, 0);
+			return 0;
+		}
+		return -3;
+	}
+	
+	return -4;
 }
 
 /**
@@ -239,17 +300,22 @@ int main()
 
 		if (result == -1)
 		{
-			strcpy(response, "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 61\n\nNot enough information was recieved in order to draw a pixel\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST\nContent-Type: text/plain\nContent-Length: 61\n\nNot enough information was recieved in order to draw a pixel\n");
 			write(connfd, response, strlen(response));
 		}
 		if (result == -2)
 		{
-			strcpy(response, "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 71\n\nSome fields were sent multiple times, so your request wasn't processed\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST\nContent-Type: text/plain\nContent-Length: 71\n\nSome fields were sent multiple times, so your request wasn't processed\n");
 			write(connfd, response, strlen(response));
 		}
 		if (result == -3)
 		{
-			strcpy(response, "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 31\n\nSome values were out of bounds\n");
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST\nContent-Type: text/plain\nContent-Length: 31\n\nSome values were out of bounds\n");
+			write(connfd, response, strlen(response));
+		}
+		if (result == -4)
+		{
+			strcpy(response, "HTTP/1.1 400 BAD REQUEST\nContent-Type: text/plain\nContent-Length: 31\n\nSome values were out of bounds\n");
 			write(connfd, response, strlen(response));
 		}
 		if (result == 1)
