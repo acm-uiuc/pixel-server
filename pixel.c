@@ -9,10 +9,13 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "structs.h"
 
 int listenfd, connfd, n;
 struct sockaddr_in serverAdress;
+struct addrinfo hints;
+struct addrinfo *serverInfo;
 char recvLine[4096 + 1];
 char * response;
 
@@ -23,16 +26,24 @@ char * response;
 
 int openSocket()
 {
-	if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-	{
-		printf("Error opening socket!\n");
-		return -1;
-	}
+	// if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+	// {
+	// 	printf("Error opening socket!\n");
+	// 	return -1;
+	// }
 
-	bzero(&serverAdress, sizeof(serverAdress));
-	serverAdress.sin_family = AF_INET;
-	serverAdress.sin_addr.s_addr = htonl(INADDR_ANY);
-	serverAdress.sin_port = htons(1800);
+	// bzero(&serverAdress, sizeof(serverAdress));
+	//serverAdress.sin_family = AF_INET;
+	//serverAdress.sin_addr.s_addr = htonl(INADDR_ANY);
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+	if(getaddrinfo(NULL, "1800", &hints, &serverInfo) != 0)
+		return -1;
+	listenfd = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
+	//serverAdress.sin_addr.s_addr = inet_addr("192.17.239.50");
+	//serverAdress.sin_port = htons(1800);
 	return 0;
 }
 
@@ -43,11 +54,13 @@ int openSocket()
 
 int bindSocket()
 {
-	if ((bind(listenfd, (struct sockaddr *) &serverAdress, sizeof(serverAdress))) < 0)
-	{
-		printf("Error binding socket!\n");
+	// if ((bind(listenfd, (struct sockaddr *) &serverAdress, sizeof(serverAdress))) < 0)
+	// {
+	// 	printf("Error binding socket!\n");
+	// 	return -1;
+	// }
+	if (bind(listenfd, serverInfo->ai_addr, serverInfo->ai_addrlen) == -1)
 		return -1;
-	}
 	return 0;
 }
 
