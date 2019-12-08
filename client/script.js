@@ -24,7 +24,7 @@ function windowResized() {
     }
 }
 
-let ws = new WebSocket("ws://0.0.0.0:8000/ws");
+let ws = new WebSocket("ws://0.0.0.0:8000/live/ws");
 
 ws.onmessage = function(ev) {
     console.log(ev);
