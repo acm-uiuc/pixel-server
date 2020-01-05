@@ -1,5 +1,7 @@
-# Framebuffer
+# pixel-server
 Backend for ACM Pixel.
+
+## Framebuffer
 
 It works by loading the Linux Framebuffer (located in /dev/fb0) into system memory so we can quickly edit the pixels on the screen.
 It uses sockets to listen to incoming requests. 
@@ -15,7 +17,7 @@ Python Requests:
 import requests
 requests.post(url = url, params = {'x' : ?, 'y' : ?, 'r' : ?, 'g' : ?, 'b' : ?})
 ```
-# Endpoints
+## Endpoints
 
 POST
 Renders a pixel with specified pixel color, at the given x and y coordinates.
@@ -31,3 +33,24 @@ GET /state.jpg
 
 Fetches a screenshot of the Pixel display.
 
+## Build Instructions
+
+To build everything:
+```
+make all
+```
+
+To build socket exec:
+```
+make socket
+```
+
+To build framebuffer exec:
+```
+make framebuffer
+```
+
+To clean up old builds:
+```
+make clean
+```
